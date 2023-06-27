@@ -454,14 +454,12 @@ int Lattice::indexTransform(int* local_coord){
 	return index_flat;
 }
 
-template<class Site>
-void Lattice::iterator(std::function<void(Site)> &operation){
+
+void Lattice::for_each(std::function<void(Site&)> operation){
 
 	/* currently only implemented for dim=3 */
 	if(this->dim()==3)
 	{	
-		omp_set_num_threads(40); // random number FIXME
-		
 		#pragma omp parallel for collapse(2)
 		for(int k=0; k<this->sizeLocal(2); k++)
 			for(int j=0; j<this->sizeLocal(1); j++)	{

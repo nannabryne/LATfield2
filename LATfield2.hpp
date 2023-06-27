@@ -18,8 +18,9 @@
 #include <forward_list>
 #include <vector>
 
-/* Should maybe have an option here */
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 
 
 #ifdef FFT3D
@@ -70,7 +71,9 @@ using namespace std;
 
 namespace LATfield2
 {
+class Site;
 #include "LATfield2_Lattice_decl.hpp"
+#include "LATfield2_Site_decl.hpp"
 }
 
 #ifdef EXTERNAL_IO
