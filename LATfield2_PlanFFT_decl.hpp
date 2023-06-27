@@ -435,6 +435,12 @@ void PlanFFT<compType>::initialize(Field<compType>*  rfield,Field<compType>*  kf
   	kData_ = (fftwf_complex*)kfield->data();
   	kData_ += kfield->lattice().siteFirst()*components_;
 
+#ifdef _OPENMP
+  fftw_plan_with_nthreads(omp_get_max_threads());
+#else
+  fftw_plan_with_nthreads(1);
+#endif
+
   	//Forward plan
   	fPlan_i_ = fftwf_plan_many_dft(1,&rSize_[0],rSizeLocal_[1] ,cData_,NULL,components_, rJump_[1]*components_,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_FORWARD,FFTW_MEASURE | FFTW_PRESERVE_INPUT);
   	fPlan_j_ = fftwf_plan_many_dft(1,&rSize_[0],rSizeLocal_[1]*rSizeLocal_[2],temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_FORWARD,FFTW_MEASURE);
@@ -538,6 +544,12 @@ void PlanFFT<compType>::initialize(Field<float>*  rfield,Field<compType>*   kfie
   }
 
   //create the fftw_plan
+
+#ifdef _OPENMP
+  fftw_plan_with_nthreads(omp_get_max_threads());
+#else
+  fftw_plan_with_nthreads(1);
+#endif
 
   fPlan_i_ = fftwf_plan_many_dft_r2c(1,&rSize_[0],rSizeLocal_[1] ,rData_,NULL,components_, rJump_[1]*components_,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_MEASURE | FFTW_PRESERVE_INPUT);
   fPlan_j_ = fftwf_plan_many_dft(1,&rSize_[0],rSizeLocal_[2]*r2cSizeLocal_,temp_,NULL,rSizeLocal_[2]*r2cSizeLocal_,1,temp_,NULL,rSizeLocal_[2]*r2cSizeLocal_,1,FFTW_FORWARD,FFTW_MEASURE);
@@ -663,6 +675,12 @@ void PlanFFT<compType>::initialize(Field<compType>*  rfield,Field<compType>*  kf
   	}
 
   	//initialization of fftw plan
+  
+#ifdef _OPENMP
+    fftw_plan_with_nthreads(omp_get_max_threads());
+#else
+    fftw_plan_with_nthreads(1);
+#endif
 
 
   	//Forward plan
@@ -822,6 +840,12 @@ void PlanFFT<compType>::initialize(Field<double>*  rfield,Field<compType>*   kfi
   cData_ = (fftw_complex*)kfield->data(); //to be sure that cData is instantiate !
   kData_ = (fftw_complex*)kfield->data();
   kData_ += kfield->lattice().siteFirst()*components_;
+
+#ifdef _OPENMP
+  fftw_plan_with_nthreads(omp_get_max_threads());
+#else
+  fftw_plan_with_nthreads(1);
+#endif
 
   fPlan_i_ = fftw_plan_many_dft_r2c(1,&rSize_[0],rSizeLocal_[1] ,rData_,NULL,components_, rJump_[1]*components_,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_MEASURE | FFTW_PRESERVE_INPUT);
   fPlan_j_ = fftw_plan_many_dft(1,&rSize_[0],rSizeLocal_[2]*r2cSizeLocal_,temp_,NULL,rSizeLocal_[2]*r2cSizeLocal_,1,temp_,NULL,rSizeLocal_[2]*r2cSizeLocal_,1,FFTW_FORWARD,FFTW_MEASURE);
