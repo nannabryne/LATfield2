@@ -437,8 +437,6 @@ void PlanFFT<compType>::initialize(Field<compType>*  rfield,Field<compType>*  kf
 
 #ifdef _OPENMP
   fftw_plan_with_nthreads(omp_get_max_threads());
-#else
-  fftw_plan_with_nthreads(1);
 #endif
 
   	//Forward plan
@@ -547,8 +545,6 @@ void PlanFFT<compType>::initialize(Field<float>*  rfield,Field<compType>*   kfie
 
 #ifdef _OPENMP
   fftw_plan_with_nthreads(omp_get_max_threads());
-#else
-  fftw_plan_with_nthreads(1);
 #endif
 
   fPlan_i_ = fftwf_plan_many_dft_r2c(1,&rSize_[0],rSizeLocal_[1] ,rData_,NULL,components_, rJump_[1]*components_,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_MEASURE | FFTW_PRESERVE_INPUT);
@@ -678,8 +674,6 @@ void PlanFFT<compType>::initialize(Field<compType>*  rfield,Field<compType>*  kf
   
 #ifdef _OPENMP
     fftw_plan_with_nthreads(omp_get_max_threads());
-#else
-    fftw_plan_with_nthreads(1);
 #endif
 
 
@@ -843,8 +837,6 @@ void PlanFFT<compType>::initialize(Field<double>*  rfield,Field<compType>*   kfi
 
 #ifdef _OPENMP
   fftw_plan_with_nthreads(omp_get_max_threads());
-#else
-  fftw_plan_with_nthreads(1);
 #endif
 
   fPlan_i_ = fftw_plan_many_dft_r2c(1,&rSize_[0],rSizeLocal_[1] ,rData_,NULL,components_, rJump_[1]*components_,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_MEASURE | FFTW_PRESERVE_INPUT);
