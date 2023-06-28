@@ -42,6 +42,11 @@ Parallel2d::Parallel2d() : neverFinalizeMPI(false)
 void Parallel2d::initialize(int proc_size0, int proc_size1)
 {
     this->initialize(proc_size0, proc_size1,0,0);
+#ifdef _OPENMP
+#ifdef FFT3D
+	fftw_init_threads();
+#endif
+#endif
 }
 
 

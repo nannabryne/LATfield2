@@ -435,15 +435,19 @@ void PlanFFT<compType>::initialize(Field<compType>*  rfield,Field<compType>*  kf
   	kData_ = (fftwf_complex*)kfield->data();
   	kData_ += kfield->lattice().siteFirst()*components_;
 
+#ifdef _OPENMP
+  fftw_plan_with_nthreads(omp_get_max_threads());
+#endif
+
   	//Forward plan
-  	fPlan_i_ = fftwf_plan_many_dft(1,&rSize_[0],rSizeLocal_[1] ,cData_,NULL,components_, rJump_[1]*components_,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_FORWARD,FFTW_ESTIMATE | FFTW_PRESERVE_INPUT);
-  	fPlan_j_ = fftwf_plan_many_dft(1,&rSize_[0],rSizeLocal_[1]*rSizeLocal_[2],temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_FORWARD,FFTW_ESTIMATE);
-  	fPlan_k_ = fftwf_plan_many_dft(1,&rSize_[0],rSizeLocal_[1] ,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,kData_,NULL,components_, rJump_[1]*components_,FFTW_FORWARD,FFTW_ESTIMATE);
+  	fPlan_i_ = fftwf_plan_many_dft(1,&rSize_[0],rSizeLocal_[1] ,cData_,NULL,components_, rJump_[1]*components_,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_FORWARD,FFTW_MEASURE | FFTW_PRESERVE_INPUT);
+  	fPlan_j_ = fftwf_plan_many_dft(1,&rSize_[0],rSizeLocal_[1]*rSizeLocal_[2],temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_FORWARD,FFTW_MEASURE);
+  	fPlan_k_ = fftwf_plan_many_dft(1,&rSize_[0],rSizeLocal_[1] ,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,kData_,NULL,components_, rJump_[1]*components_,FFTW_FORWARD,FFTW_MEASURE);
   	//Backward plan
 
-  	bPlan_k_ = fftwf_plan_many_dft(1,&rSize_[0],rSizeLocal_[1] ,kData_,NULL,components_, rJump_[1]*components_,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_BACKWARD,FFTW_ESTIMATE | FFTW_PRESERVE_INPUT);
-  	bPlan_j_ = fftwf_plan_many_dft(1,&rSize_[0],rSizeLocal_[1]*rSizeLocal_[2],temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_BACKWARD,FFTW_ESTIMATE);
-  	bPlan_i_ = fftwf_plan_many_dft(1,&rSize_[0],rSizeLocal_[1] ,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,cData_,NULL,components_, rJump_[1]*components_,FFTW_BACKWARD,FFTW_ESTIMATE| FFTW_PRESERVE_INPUT);
+  	bPlan_k_ = fftwf_plan_many_dft(1,&rSize_[0],rSizeLocal_[1] ,kData_,NULL,components_, rJump_[1]*components_,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_BACKWARD,FFTW_MEASURE | FFTW_PRESERVE_INPUT);
+  	bPlan_j_ = fftwf_plan_many_dft(1,&rSize_[0],rSizeLocal_[1]*rSizeLocal_[2],temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_BACKWARD,FFTW_MEASURE);
+  	bPlan_i_ = fftwf_plan_many_dft(1,&rSize_[0],rSizeLocal_[1] ,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,cData_,NULL,components_, rJump_[1]*components_,FFTW_BACKWARD,FFTW_MEASURE| FFTW_PRESERVE_INPUT);
 
   	//allocation of field
 
@@ -539,15 +543,19 @@ void PlanFFT<compType>::initialize(Field<float>*  rfield,Field<compType>*   kfie
 
   //create the fftw_plan
 
-  fPlan_i_ = fftwf_plan_many_dft_r2c(1,&rSize_[0],rSizeLocal_[1] ,rData_,NULL,components_, rJump_[1]*components_,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_ESTIMATE | FFTW_PRESERVE_INPUT);
-  fPlan_j_ = fftwf_plan_many_dft(1,&rSize_[0],rSizeLocal_[2]*r2cSizeLocal_,temp_,NULL,rSizeLocal_[2]*r2cSizeLocal_,1,temp_,NULL,rSizeLocal_[2]*r2cSizeLocal_,1,FFTW_FORWARD,FFTW_ESTIMATE);
-  fPlan_k_ = fftwf_plan_many_dft(1,&rSize_[0],r2cSizeLocal_as_,temp_,NULL,rSizeLocal_[2]*r2cSizeLocal_,1,temp1_,NULL,rSizeLocal_[2]*r2cSizeLocal_as_,1,FFTW_FORWARD,FFTW_ESTIMATE);
-  fPlan_k_real_ =  fftwf_plan_many_dft(1,&rSize_[0],rSizeLocal_[2],&temp_[r2cSizeLocal_as_],NULL,rSizeLocal_[2]*r2cSizeLocal_,r2cSizeLocal_,&temp1_[r2cSizeLocal_as_*rSizeLocal_[2]*rSize_[0]],NULL,rSizeLocal_[2],1,FFTW_FORWARD,FFTW_ESTIMATE);
+#ifdef _OPENMP
+  fftw_plan_with_nthreads(omp_get_max_threads());
+#endif
 
-  bPlan_k_ = fftwf_plan_many_dft(1,&rSize_[0],kSizeLocal_[2]*r2cSizeLocal_,temp_,NULL,kSizeLocal_[2]*r2cSizeLocal_,1,temp_,NULL,kSizeLocal_[2]*r2cSizeLocal_,1,FFTW_BACKWARD,FFTW_ESTIMATE);
-  bPlan_j_ = fftwf_plan_many_dft(1,&rSize_[0],r2cSizeLocal_as_,temp_,NULL,rSizeLocal_[2]*r2cSizeLocal_,1,temp1_,NULL,rSizeLocal_[2]*r2cSizeLocal_as_,1,FFTW_BACKWARD,FFTW_ESTIMATE);
-  bPlan_j_real_ =  fftwf_plan_many_dft(1,&rSize_[0],rSizeLocal_[2],&temp_[r2cSizeLocal_as_],NULL,rSizeLocal_[2]*r2cSizeLocal_,r2cSizeLocal_,&temp1_[r2cSizeLocal_as_*rSizeLocal_[2]*rSize_[0]],NULL,rSizeLocal_[2],1,FFTW_BACKWARD,FFTW_ESTIMATE);
-  bPlan_i_ = fftwf_plan_many_dft_c2r(1,&rSize_[0],rSizeLocal_[1] ,temp1_,NULL,1, r2cSize_,rData_,NULL,components_,rJump_[1]*components_,FFTW_ESTIMATE);
+  fPlan_i_ = fftwf_plan_many_dft_r2c(1,&rSize_[0],rSizeLocal_[1] ,rData_,NULL,components_, rJump_[1]*components_,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_MEASURE | FFTW_PRESERVE_INPUT);
+  fPlan_j_ = fftwf_plan_many_dft(1,&rSize_[0],rSizeLocal_[2]*r2cSizeLocal_,temp_,NULL,rSizeLocal_[2]*r2cSizeLocal_,1,temp_,NULL,rSizeLocal_[2]*r2cSizeLocal_,1,FFTW_FORWARD,FFTW_MEASURE);
+  fPlan_k_ = fftwf_plan_many_dft(1,&rSize_[0],r2cSizeLocal_as_,temp_,NULL,rSizeLocal_[2]*r2cSizeLocal_,1,temp1_,NULL,rSizeLocal_[2]*r2cSizeLocal_as_,1,FFTW_FORWARD,FFTW_MEASURE);
+  fPlan_k_real_ =  fftwf_plan_many_dft(1,&rSize_[0],rSizeLocal_[2],&temp_[r2cSizeLocal_as_],NULL,rSizeLocal_[2]*r2cSizeLocal_,r2cSizeLocal_,&temp1_[r2cSizeLocal_as_*rSizeLocal_[2]*rSize_[0]],NULL,rSizeLocal_[2],1,FFTW_FORWARD,FFTW_MEASURE);
+
+  bPlan_k_ = fftwf_plan_many_dft(1,&rSize_[0],kSizeLocal_[2]*r2cSizeLocal_,temp_,NULL,kSizeLocal_[2]*r2cSizeLocal_,1,temp_,NULL,kSizeLocal_[2]*r2cSizeLocal_,1,FFTW_BACKWARD,FFTW_MEASURE);
+  bPlan_j_ = fftwf_plan_many_dft(1,&rSize_[0],r2cSizeLocal_as_,temp_,NULL,rSizeLocal_[2]*r2cSizeLocal_,1,temp1_,NULL,rSizeLocal_[2]*r2cSizeLocal_as_,1,FFTW_BACKWARD,FFTW_MEASURE);
+  bPlan_j_real_ =  fftwf_plan_many_dft(1,&rSize_[0],rSizeLocal_[2],&temp_[r2cSizeLocal_as_],NULL,rSizeLocal_[2]*r2cSizeLocal_,r2cSizeLocal_,&temp1_[r2cSizeLocal_as_*rSizeLocal_[2]*rSize_[0]],NULL,rSizeLocal_[2],1,FFTW_BACKWARD,FFTW_MEASURE);
+  bPlan_i_ = fftwf_plan_many_dft_c2r(1,&rSize_[0],rSizeLocal_[1] ,temp1_,NULL,1, r2cSize_,rData_,NULL,components_,rJump_[1]*components_,FFTW_MEASURE);
 
 //  PrintPlans();
 
@@ -663,17 +671,21 @@ void PlanFFT<compType>::initialize(Field<compType>*  rfield,Field<compType>*  kf
   	}
 
   	//initialization of fftw plan
+  
+#ifdef _OPENMP
+    fftw_plan_with_nthreads(omp_get_max_threads());
+#endif
 
 
   	//Forward plan
-  	fPlan_i_ = fftw_plan_many_dft(1,&rSize_[0],rSizeLocal_[1] ,cData_,NULL,components_, rJump_[1]*components_,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_FORWARD,FFTW_ESTIMATE | FFTW_PRESERVE_INPUT);
-  	fPlan_j_ = fftw_plan_many_dft(1,&rSize_[0],rSizeLocal_[1]*rSizeLocal_[2],temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_FORWARD,FFTW_ESTIMATE);
-  	fPlan_k_ = fftw_plan_many_dft(1,&rSize_[0],rSizeLocal_[1] ,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,kData_,NULL,components_, rJump_[1]*components_,FFTW_FORWARD,FFTW_ESTIMATE);
+  	fPlan_i_ = fftw_plan_many_dft(1,&rSize_[0],rSizeLocal_[1] ,cData_,NULL,components_, rJump_[1]*components_,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_FORWARD,FFTW_MEASURE | FFTW_PRESERVE_INPUT);
+  	fPlan_j_ = fftw_plan_many_dft(1,&rSize_[0],rSizeLocal_[1]*rSizeLocal_[2],temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_FORWARD,FFTW_MEASURE);
+  	fPlan_k_ = fftw_plan_many_dft(1,&rSize_[0],rSizeLocal_[1] ,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,kData_,NULL,components_, rJump_[1]*components_,FFTW_FORWARD,FFTW_MEASURE);
   	//Backward plan
 
-  	bPlan_k_ = fftw_plan_many_dft(1,&rSize_[0],rSizeLocal_[1] ,kData_,NULL,components_, rJump_[1]*components_,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_BACKWARD,FFTW_ESTIMATE | FFTW_PRESERVE_INPUT);
-  	bPlan_j_ = fftw_plan_many_dft(1,&rSize_[0],rSizeLocal_[1]*rSizeLocal_[2],temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_BACKWARD,FFTW_ESTIMATE);
-  	bPlan_i_ = fftw_plan_many_dft(1,&rSize_[0],rSizeLocal_[1] ,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,cData_,NULL,components_, rJump_[1]*components_,FFTW_BACKWARD,FFTW_ESTIMATE);
+  	bPlan_k_ = fftw_plan_many_dft(1,&rSize_[0],rSizeLocal_[1] ,kData_,NULL,components_, rJump_[1]*components_,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_BACKWARD,FFTW_MEASURE | FFTW_PRESERVE_INPUT);
+  	bPlan_j_ = fftw_plan_many_dft(1,&rSize_[0],rSizeLocal_[1]*rSizeLocal_[2],temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_BACKWARD,FFTW_MEASURE);
+  	bPlan_i_ = fftw_plan_many_dft(1,&rSize_[0],rSizeLocal_[1] ,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,cData_,NULL,components_, rJump_[1]*components_,FFTW_BACKWARD,FFTW_MEASURE);
 
   	//allocation of field
 
@@ -823,15 +835,19 @@ void PlanFFT<compType>::initialize(Field<double>*  rfield,Field<compType>*   kfi
   kData_ = (fftw_complex*)kfield->data();
   kData_ += kfield->lattice().siteFirst()*components_;
 
-  fPlan_i_ = fftw_plan_many_dft_r2c(1,&rSize_[0],rSizeLocal_[1] ,rData_,NULL,components_, rJump_[1]*components_,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_ESTIMATE | FFTW_PRESERVE_INPUT);
-  fPlan_j_ = fftw_plan_many_dft(1,&rSize_[0],rSizeLocal_[2]*r2cSizeLocal_,temp_,NULL,rSizeLocal_[2]*r2cSizeLocal_,1,temp_,NULL,rSizeLocal_[2]*r2cSizeLocal_,1,FFTW_FORWARD,FFTW_ESTIMATE);
-  fPlan_k_ = fftw_plan_many_dft(1,&rSize_[0],r2cSizeLocal_as_,temp_,NULL,rSizeLocal_[2]*r2cSizeLocal_,1,temp1_,NULL,rSizeLocal_[2]*r2cSizeLocal_as_,1,FFTW_FORWARD,FFTW_ESTIMATE);
-  fPlan_k_real_ =  fftw_plan_many_dft(1,&rSize_[0],rSizeLocal_[2],&temp_[r2cSizeLocal_as_],NULL,rSizeLocal_[2]*r2cSizeLocal_,r2cSizeLocal_,&temp1_[r2cSizeLocal_as_*rSizeLocal_[2]*rSize_[0]],NULL,rSizeLocal_[2],1,FFTW_FORWARD,FFTW_ESTIMATE);
+#ifdef _OPENMP
+  fftw_plan_with_nthreads(omp_get_max_threads());
+#endif
 
-  bPlan_k_ = fftw_plan_many_dft(1,&rSize_[0],kSizeLocal_[2]*r2cSizeLocal_,temp_,NULL,kSizeLocal_[2]*r2cSizeLocal_,1,temp_,NULL,kSizeLocal_[2]*r2cSizeLocal_,1,FFTW_BACKWARD,FFTW_ESTIMATE);
-  bPlan_j_ = fftw_plan_many_dft(1,&rSize_[0],r2cSizeLocal_as_,temp_,NULL,rSizeLocal_[2]*r2cSizeLocal_,1,temp1_,NULL,rSizeLocal_[2]*r2cSizeLocal_as_,1,FFTW_BACKWARD,FFTW_ESTIMATE);
-  bPlan_j_real_ =  fftw_plan_many_dft(1,&rSize_[0],rSizeLocal_[2],&temp_[r2cSizeLocal_as_],NULL,rSizeLocal_[2]*r2cSizeLocal_,r2cSizeLocal_,&temp1_[r2cSizeLocal_as_*rSizeLocal_[2]*rSize_[0]],NULL,rSizeLocal_[2],1,FFTW_BACKWARD,FFTW_ESTIMATE);
-  bPlan_i_ = fftw_plan_many_dft_c2r(1,&rSize_[0],rSizeLocal_[1] ,temp1_,NULL,1, r2cSize_,rData_,NULL,components_,rJump_[1]*components_,FFTW_ESTIMATE);
+  fPlan_i_ = fftw_plan_many_dft_r2c(1,&rSize_[0],rSizeLocal_[1] ,rData_,NULL,components_, rJump_[1]*components_,temp_,NULL,rSizeLocal_[1]*rSizeLocal_[2],1,FFTW_MEASURE | FFTW_PRESERVE_INPUT);
+  fPlan_j_ = fftw_plan_many_dft(1,&rSize_[0],rSizeLocal_[2]*r2cSizeLocal_,temp_,NULL,rSizeLocal_[2]*r2cSizeLocal_,1,temp_,NULL,rSizeLocal_[2]*r2cSizeLocal_,1,FFTW_FORWARD,FFTW_MEASURE);
+  fPlan_k_ = fftw_plan_many_dft(1,&rSize_[0],r2cSizeLocal_as_,temp_,NULL,rSizeLocal_[2]*r2cSizeLocal_,1,temp1_,NULL,rSizeLocal_[2]*r2cSizeLocal_as_,1,FFTW_FORWARD,FFTW_MEASURE);
+  fPlan_k_real_ =  fftw_plan_many_dft(1,&rSize_[0],rSizeLocal_[2],&temp_[r2cSizeLocal_as_],NULL,rSizeLocal_[2]*r2cSizeLocal_,r2cSizeLocal_,&temp1_[r2cSizeLocal_as_*rSizeLocal_[2]*rSize_[0]],NULL,rSizeLocal_[2],1,FFTW_FORWARD,FFTW_MEASURE);
+
+  bPlan_k_ = fftw_plan_many_dft(1,&rSize_[0],kSizeLocal_[2]*r2cSizeLocal_,temp_,NULL,kSizeLocal_[2]*r2cSizeLocal_,1,temp_,NULL,kSizeLocal_[2]*r2cSizeLocal_,1,FFTW_BACKWARD,FFTW_MEASURE);
+  bPlan_j_ = fftw_plan_many_dft(1,&rSize_[0],r2cSizeLocal_as_,temp_,NULL,rSizeLocal_[2]*r2cSizeLocal_,1,temp1_,NULL,rSizeLocal_[2]*r2cSizeLocal_as_,1,FFTW_BACKWARD,FFTW_MEASURE);
+  bPlan_j_real_ =  fftw_plan_many_dft(1,&rSize_[0],rSizeLocal_[2],&temp_[r2cSizeLocal_as_],NULL,rSizeLocal_[2]*r2cSizeLocal_,r2cSizeLocal_,&temp1_[r2cSizeLocal_as_*rSizeLocal_[2]*rSize_[0]],NULL,rSizeLocal_[2],1,FFTW_BACKWARD,FFTW_MEASURE);
+  bPlan_i_ = fftw_plan_many_dft_c2r(1,&rSize_[0],rSizeLocal_[1] ,temp1_,NULL,1, r2cSize_,rData_,NULL,components_,rJump_[1]*components_,FFTW_MEASURE);
 
 //  PrintPlans();
 }

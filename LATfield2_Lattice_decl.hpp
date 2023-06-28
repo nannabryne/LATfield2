@@ -182,8 +182,23 @@ public:
     
     int * sizeLocalAllProcDim0();
     int * sizeLocalAllProcDim1();
+
+
+    /* [NEW!] OpenMP stuff */
+
+    /*!
+    \param local_coord local coordinate to transform (in 3D case: {i,j,k})
+    \return int: flat index 
+    */
+    int indexTransform(int* local_coord);
+
+    /*!
+    \param operation lambda function of LATfield2::Site 
+    \warning only implemented for 3D case (Work in progress)
+    */
+    void for_each(std::function<void(Site&)> operation);
     
-    
+
 private:
     int        status_;
     static int initialized;

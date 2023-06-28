@@ -431,5 +431,69 @@ long Lattice::siteLast() { return siteLast_; }
 int * Lattice::sizeLocalAllProcDim0(){ return sizeLocalAllProcDim0_; }
 int * Lattice::sizeLocalAllProcDim1(){ return sizeLocalAllProcDim1_; }
 
+
+
+int Lattice::indexTransform(int* local_coord){
+	int index_flat;
+
+	const int halo = this->halo();
+    const int dim = this->dim();
+
+    // index_flat = 0;
+    int jump = 1;   // lack of better name
+    // for(int n=0; n<dim; n++){
+    //     index_flat += jump * ( halo + local_coord[n] );
+    //     jump *= ( this->sizeLocal(n) + 2*halo );
+    // }
+	index_flat = halo + local_coord[0];
+	 for(int n=1; n<dim; n++){
+		jump *= ( this->sizeLocal(n-1) + 2*halo );
+        index_flat += jump * ( halo + local_coord[n] );
+    }
+
+	return index_flat;
+}
+
+
+void Lattice::for_each(std::function<void(Site&)> operation){
+
+	/* currently only implemented for dim=3 */
+#ifdef _OPENMP
+	if(this->dim()==3)
+	{	
+		#pragma omp parallel for collapse(2)
+		for(int k=0; k<this->sizeLocal(2); k++)
+			for(int j=0; j<this->sizeLocal(1); j++)	{
+
+				
+				int ijk[] = {0,j,k};
+				int idx = this->indexTransform(ijk);
+				
+				Site x(*this, idx);
+				for(int i=0; i<this->sizeLocal(0); i++){
+					operation(x);
+					x.indexAdvance(1);
+				}
+
+			}
+	}
+	else
+	{
+		Site x(*this);
+		for(x.first(); x.test(); x.next()){
+			operation(x);
+		}
+
+	}
+#else
+	Site x(*this);
+	for(x.first(); x.test(); x.next()){
+		operation(x);
+	}
+#endif
+
+}	
+
+
 #endif
 
