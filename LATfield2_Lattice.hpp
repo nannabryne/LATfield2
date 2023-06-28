@@ -458,6 +458,7 @@ int Lattice::indexTransform(int* local_coord){
 void Lattice::for_each(std::function<void(Site&)> operation){
 
 	/* currently only implemented for dim=3 */
+#ifdef _OPENMP
 	if(this->dim()==3)
 	{	
 		#pragma omp parallel for collapse(2)
@@ -476,7 +477,6 @@ void Lattice::for_each(std::function<void(Site&)> operation){
 
 			}
 	}
-	
 	else
 	{
 		Site x(*this);
@@ -485,6 +485,12 @@ void Lattice::for_each(std::function<void(Site&)> operation){
 		}
 
 	}
+#else
+	Site x(*this);
+	for(x.first(); x.test(); x.next()){
+		operation(x);
+	}
+#endif
 
 }	
 
