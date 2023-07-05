@@ -436,7 +436,7 @@ void PlanFFT<compType>::initialize(Field<compType>*  rfield,Field<compType>*  kf
   	kData_ += kfield->lattice().siteFirst()*components_;
 
 #ifdef _OPENMP
-  fftw_plan_with_nthreads(omp_get_max_threads());
+    fftw_plan_with_nthreads(omp_get_max_threads());
 #endif
 
   	//Forward plan
