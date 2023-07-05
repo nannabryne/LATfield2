@@ -10,7 +10,7 @@
 
 /*! \file LATfield2_parallel2d.hpp
  \brief LATfield2_parallel2d.hpp contains the class Parallel2d implementation.
- \author David Daverio, edited by Wessel Valkenburg
+ \author David Daverio, edited by Wessel Valkenburg, further edited by Nanna Bryne
  */
 
 
@@ -38,7 +38,8 @@ Parallel2d::Parallel2d() : neverFinalizeMPI(false)
 	MPI_Comm_size( lat_world_comm_, &lat_world_size_ );
     MPI_Comm_rank( world_comm_, &world_rank_ );
 	MPI_Comm_size( world_comm_, &world_size_ );
-#else
+
+#else // not EXTERNAL_IO
     world_comm_ = MPI_COMM_WORLD;
 #ifdef _OPENMP
 	int provided;
@@ -53,7 +54,7 @@ Parallel2d::Parallel2d() : neverFinalizeMPI(false)
     MPI_Comm_rank( world_comm_, &world_rank_ );
 	MPI_Comm_size( world_comm_, &world_size_ );
 
-#endif
+#endif // (EXTERNAL_IO/not EXTERNAL_IO)
 
 }
 
