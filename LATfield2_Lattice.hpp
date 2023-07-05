@@ -4,7 +4,7 @@
 
 /*! \file LATfield2_Lattice.hpp
  \brief LATfield2_Lattice.hpp contains the class Lattice definition.
- \author David Daverio, Neil Bevis
+ \author David Daverio, Neil Bevis, edited by Nanna Bryne
  */ 
 
 
@@ -455,13 +455,39 @@ int Lattice::indexTransform(int* local_coord){
 }
 
 
+
+
+
+#ifndef _OPENMP
+
+void Lattice::for_each(std::function<void(Site&)> operation){
+	Site x(*this);
+	for(x.first(); x.test(); x.next()){
+		operation(x);
+	}
+}
+
+
+
+void Lattice::for_each_part(std::function<void(Site&, Site&)> operation, Lattice *other){
+	Site x_this(*this);
+	Site x_other(*other);
+
+	for(x_this.first(), x_other.first(); x_this.test(); x_this.next(), x_other.next()){
+		operation(x_this, x_other);
+	}
+}
+
+#else
+
+
+
 void Lattice::for_each(std::function<void(Site&)> operation){
 
 	/* currently only implemented for dim=3 */
-#ifdef _OPENMP
 	if(this->dim()==3)
 	{	
-		#pragma omp parallel for collapse(2)
+		#pragma omp parallel for collapse(2) //schedule(dynamic)
 		for(int k=0; k<this->sizeLocal(2); k++)
 			for(int j=0; j<this->sizeLocal(1); j++)	{
 
@@ -485,14 +511,92 @@ void Lattice::for_each(std::function<void(Site&)> operation){
 		}
 
 	}
-#else
-	Site x(*this);
-	for(x.first(); x.test(); x.next()){
-		operation(x);
-	}
-#endif
 
 }	
+
+
+void Lattice::for_each_part(std::function<void(Site&, Site&)> operation, Lattice *other){
+
+	#pragma omp parallel
+	{
+
+	/* even-even sites */
+	#pragma omp for collapse(2)
+	for(int k=0; k<this->sizeLocal(2); k+=2)
+		for(int j=0; j<this->sizeLocal(1); j+=2){
+			int ijk[] = {0,j,k};
+			int idx_this = this->indexTransform(ijk);
+			int idx_other = other->indexTransform(ijk);
+			
+			Site x_this(*this, idx_this);
+			Site x_other(*other, idx_other);
+			for(int i=0; i<this->sizeLocal(0); i++){
+				operation(x_this, x_other);	
+				x_this.indexAdvance(1);
+				x_other.indexAdvance(1);
+			}
+		}
+
+	// /* odd-odd sites */
+	#pragma omp for collapse(2)
+	for(int k=1; k<this->sizeLocal(2); k+=2)
+		for(int j=1; j<this->sizeLocal(1); j+=2){
+			int ijk[] = {0,j,k};
+			int idx_this = this->indexTransform(ijk);
+			int idx_other = other->indexTransform(ijk);
+			
+			Site x_this(*this, idx_this);
+			Site x_other(*other, idx_other);
+			for(int i=0; i<this->sizeLocal(0); i++){
+				operation(x_this, x_other);	
+				x_this.indexAdvance(1);
+				x_other.indexAdvance(1);
+			}
+		}
+
+
+	// /* even-odd sites */
+	#pragma omp for collapse(2)
+	for(int k=0; k<this->sizeLocal(2); k+=2)
+		for(int j=1; j<this->sizeLocal(1); j+=2){
+			int ijk[] = {0,j,k};
+			int idx_this = this->indexTransform(ijk);
+			int idx_other = other->indexTransform(ijk);
+			
+			Site x_this(*this, idx_this);
+			Site x_other(*other, idx_other);
+			for(int i=0; i<this->sizeLocal(0); i++){
+				operation(x_this, x_other);	
+				x_this.indexAdvance(1);
+				x_other.indexAdvance(1);
+			}
+		}
+
+	// /* odd-even sites */
+	#pragma omp for collapse(2)
+	for(int k=1; k<this->sizeLocal(2); k+=2)
+		for(int j=0; j<this->sizeLocal(1); j+=2){
+			int ijk[] = {0,j,k};
+			int idx_this = this->indexTransform(ijk);
+			int idx_other = other->indexTransform(ijk);
+			
+			Site x_this(*this, idx_this);
+			Site x_other(*other, idx_other);
+			for(int i=0; i<this->sizeLocal(0); i++){
+				operation(x_this, x_other);	
+				x_this.indexAdvance(1);
+				x_other.indexAdvance(1);
+			}
+		}
+
+
+
+	} // end of parallel region
+
+
+}
+
+#endif // OpenMP codes
 
 
 #endif

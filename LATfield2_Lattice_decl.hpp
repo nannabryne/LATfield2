@@ -197,6 +197,8 @@ public:
     \warning only implemented for 3D case (Work in progress)
     */
     void for_each(std::function<void(Site&)> operation);
+
+    void for_each_part(std::function<void(Site&, Site&)> operation, Lattice *other);
     
 
 private:
