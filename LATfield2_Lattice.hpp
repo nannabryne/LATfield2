@@ -434,17 +434,17 @@ int * Lattice::sizeLocalAllProcDim1(){ return sizeLocalAllProcDim1_; }
 
 
 int Lattice::indexTransform(int* local_coord){
-	int index_flat;
 
 	const int halo = this->halo();
     const int dim = this->dim();
 
-    // index_flat = 0;
+	int index_flat = 0;
     int jump = 1;   // lack of better name
     // for(int n=0; n<dim; n++){
     //     index_flat += jump * ( halo + local_coord[n] );
     //     jump *= ( this->sizeLocal(n) + 2*halo );
     // }
+
 	index_flat = halo + local_coord[0];
 	 for(int n=1; n<dim; n++){
 		jump *= ( this->sizeLocal(n-1) + 2*halo );
@@ -461,6 +461,7 @@ int Lattice::indexTransform(int* local_coord){
 #ifndef _OPENMP
 
 void Lattice::for_each(std::function<void(Site&)> operation){
+	/* (no OpenMP version) usual iterator method */
 	Site x(*this);
 	for(x.first(); x.test(); x.next()){
 		operation(x);
@@ -468,40 +469,50 @@ void Lattice::for_each(std::function<void(Site&)> operation){
 }
 
 
-
 void Lattice::for_each_part(std::function<void(Site&, Site&)> operation, Lattice *other){
-	Site x_this(*this);
-	Site x_other(*other);
-
+	/* (no OpenMP version) usual iterator method */
+	Site x_this(*this);		// e.g. site on particle lattice
+	Site x_other(*other);	// e.g. site on field lattice
 	for(x_this.first(), x_other.first(); x_this.test(); x_this.next(), x_other.next()){
 		operation(x_this, x_other);
 	}
 }
 
-#else
 
+
+#else // OpenMP parallelised loops:
 
 
 void Lattice::for_each(std::function<void(Site&)> operation){
 
+	/* Should modify to secure against infinite loop */
+
 	/* currently only implemented for dim=3 */
 	if(this->dim()==3)
 	{	
-		#pragma omp parallel for collapse(2) //schedule(dynamic)
-		for(int k=0; k<this->sizeLocal(2); k++)
-			for(int j=0; j<this->sizeLocal(1); j++)	{
+		if(omp_in_parallel()){ /* if parallel region already exists */
 
-				
-				int ijk[] = {0,j,k};
-				int idx = this->indexTransform(ijk);
-				
-				Site x(*this, idx);
-				for(int i=0; i<this->sizeLocal(0); i++){
-					operation(x);
-					x.indexAdvance(1);
+			#pragma omp for collapse(2)
+			for(int k=0; k<this->sizeLocal(2); k++)
+				for(int j=0; j<this->sizeLocal(1); j++){
+					
+					int ijk[] = {0,j,k};
+					int idx = this->indexTransform(ijk);
+					
+					Site x(*this, idx);
+					for(int i=0; i<this->sizeLocal(0); i++){
+						operation(x);
+						x.indexAdvance(1);
+					}
+
 				}
-
+		}
+		else{ /* create new parallel region */
+			#pragma omp parallel
+			{
+				for_each(operation);
 			}
+		}
 	}
 	else
 	{
@@ -517,84 +528,89 @@ void Lattice::for_each(std::function<void(Site&)> operation){
 
 void Lattice::for_each_part(std::function<void(Site&, Site&)> operation, Lattice *other){
 
-	#pragma omp parallel
+	/* 
+	The purpose of this iteration division is to avoid race conditions, 
+	in when performing scalar projections. 
+
+	SCEME IDEA (one loop):
+
+			x	 x    x    x    x	 x    x    x    x
+		
+		    x	 o    x    x    o	 x    x    o	x
+
+			x	 x    x    x    x	 x    x    x    x
+	
+			x	 x    x    x    x	 x    x    x    x
+
+			x	 o    x    x    o	 x    x    o	x
+
+			x	 x    x    x    x	 x    x    x    x
+
+
+		here: 2x3=6 iterations that considers a point (o) for which the neighbours (x) are only that of said point
+	
+	(the inner loop over i is serialised, so no need to skip sites there)
+
+	*/
+	
+	if(this->dim()==3)
 	{
+		if(omp_in_parallel()){ // if parallel region exists
 
-	/* even-even sites */
-	#pragma omp for collapse(2)
-	for(int k=0; k<this->sizeLocal(2); k+=2)
-		for(int j=0; j<this->sizeLocal(1); j+=2){
-			int ijk[] = {0,j,k};
-			int idx_this = this->indexTransform(ijk);
-			int idx_other = other->indexTransform(ijk);
+			/* initialise thread-private variables */
+
+			int idx_this, idx_other;
+
+
+			auto loop = [&] (int j_start, int k_start, const int incr=2){
+				#pragma omp for collapse(2)
+				for(int k=k_start; k<this->sizeLocal(2); k+=incr)
+					for(int j=j_start; j<this->sizeLocal(1); j+=incr){
+						int ijk[] = {0,j,k};
+						idx_this = this->indexTransform(ijk);
+						idx_other = other->indexTransform(ijk);
+						
+						Site x_this(*this, idx_this);
+						Site x_other(*other, idx_other);
+						for(int i=0; i<this->sizeLocal(0); i++){
+							operation(x_this, x_other);	
+							x_this.indexAdvance(1);
+							x_other.indexAdvance(1);
+						}
+					}
+				// implicit barrier
+			};
+
 			
-			Site x_this(*this, idx_this);
-			Site x_other(*other, idx_other);
-			for(int i=0; i<this->sizeLocal(0); i++){
-				operation(x_this, x_other);	
-				x_this.indexAdvance(1);
-				x_other.indexAdvance(1);
-			}
-		}
+			loop(0,0); 	/* even-even sites */
+			loop(1,1); 	/* odd-odd sites */
+			loop(1,0); 	/* even-odd sites */
+			loop(0,1);	/* odd-even sites */
 
-	// /* odd-odd sites */
-	#pragma omp for collapse(2)
-	for(int k=1; k<this->sizeLocal(2); k+=2)
-		for(int j=1; j<this->sizeLocal(1); j+=2){
-			int ijk[] = {0,j,k};
-			int idx_this = this->indexTransform(ijk);
-			int idx_other = other->indexTransform(ijk);
+		} 
+		else{ // if parallel region does NOT exist 
+
+			#pragma omp parallel
+			{
+				for_each_part(operation, other);
 			
-			Site x_this(*this, idx_this);
-			Site x_other(*other, idx_other);
-			for(int i=0; i<this->sizeLocal(0); i++){
-				operation(x_this, x_other);	
-				x_this.indexAdvance(1);
-				x_other.indexAdvance(1);
-			}
+			} // end of parallel region
 		}
-
-
-	// /* even-odd sites */
-	#pragma omp for collapse(2)
-	for(int k=0; k<this->sizeLocal(2); k+=2)
-		for(int j=1; j<this->sizeLocal(1); j+=2){
-			int ijk[] = {0,j,k};
-			int idx_this = this->indexTransform(ijk);
-			int idx_other = other->indexTransform(ijk);
-			
-			Site x_this(*this, idx_this);
-			Site x_other(*other, idx_other);
-			for(int i=0; i<this->sizeLocal(0); i++){
-				operation(x_this, x_other);	
-				x_this.indexAdvance(1);
-				x_other.indexAdvance(1);
-			}
+	}
+	else // in the unlikely case of less/more than three dimensions
+	{
+		Site x_this(*this);		// e.g. site on particle lattice
+		Site x_other(*other);	// e.g. site on field lattice
+		for(x_this.first(), x_other.first(); x_this.test(); x_this.next(), x_other.next()){
+			operation(x_this, x_other);
 		}
-
-	// /* odd-even sites */
-	#pragma omp for collapse(2)
-	for(int k=1; k<this->sizeLocal(2); k+=2)
-		for(int j=0; j<this->sizeLocal(1); j+=2){
-			int ijk[] = {0,j,k};
-			int idx_this = this->indexTransform(ijk);
-			int idx_other = other->indexTransform(ijk);
-			
-			Site x_this(*this, idx_this);
-			Site x_other(*other, idx_other);
-			for(int i=0; i<this->sizeLocal(0); i++){
-				operation(x_this, x_other);	
-				x_this.indexAdvance(1);
-				x_other.indexAdvance(1);
-			}
-		}
-
-
-
-	} // end of parallel region
-
+	}
 
 }
+
+
+
+
 
 #endif // OpenMP codes
 

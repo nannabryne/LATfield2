@@ -83,28 +83,13 @@ void scalarProjectionCIC_project(Particles<part,part_info,part_dataType> * parts
         exit(-1);
     }
 
-    Site xPart(parts->lattice());
-    Site xField(rho->lattice());
-
-    typename std::forward_list<part>::iterator it;
+    // Site xPart(parts->lattice());
+    // Site xField(rho->lattice());
 
     //size_t offset;
     //*offset = oset;
 
-    double referPos[3];
-    double rescalPos[3];
-    double rescalPosDown[3];
-    double latresolution = parts->res();
-
-    double mass;
-    double cicVol;
-    cicVol= latresolution*latresolution*latresolution;
-    cicVol *= cicVol;
-
-    Real localCube[8]; // XYZ = 000 | 001 | 010 | 011 | 100 | 101 | 110 | 111
-
     int sfrom;
-
     size_t offset;
 
     if(oset == NULL)
@@ -114,9 +99,30 @@ void scalarProjectionCIC_project(Particles<part,part_info,part_dataType> * parts
     }
     else
     {
-        sfrom =  flag_where;
+        sfrom = flag_where;
         offset = *oset;
     }
+
+
+    double latresolution = parts->res();
+
+    double cicVol;
+    cicVol= latresolution*latresolution*latresolution;
+    cicVol *= cicVol;
+
+
+
+    #pragma omp parallel
+    {
+
+    double referPos[3];
+    double rescalPos[3];
+    double rescalPosDown[3];
+
+    double mass;
+   
+
+    Real localCube[8]; // XYZ = 000 | 001 | 010 | 011 | 100 | 101 | 110 | 111
 
     if(sfrom == FROM_INFO)
     {
@@ -125,60 +131,72 @@ void scalarProjectionCIC_project(Particles<part,part_info,part_dataType> * parts
         //cout << mass<<endl;
     }
 
+    
 
 
+    auto op = [&] (Site& xPart, Site& xField){
 
-    for(xPart.first(),xField.first();xPart.test();xPart.next(),xField.next())
-    {
+        if(!parts->field()(xPart).parts.empty()){
+    
 
+        for(int i=0;i<3;i++)referPos[i]=xPart.coord(i)*latresolution;
+        for(int i=0;i<8;i++)localCube[i]=0;
 
-        if(!parts->field()(xPart).parts.empty())
+        typename std::forward_list<part>::iterator it;
+
+        for (it=(parts->field())(xPart).parts.begin(); it != (parts->field())(xPart).parts.end(); ++it)
         {
-            for(int i=0;i<3;i++)referPos[i]=xPart.coord(i)*latresolution;
-            for(int i=0;i<8;i++)localCube[i]=0;
-
-            for (it=(parts->field())(xPart).parts.begin(); it != (parts->field())(xPart).parts.end(); ++it)
+            for(int i =0;i<3;i++)
             {
-                for(int i =0;i<3;i++)
-                {
-                    rescalPos[i]=(*it).pos[i]-referPos[i];
-                    rescalPosDown[i]=latresolution -rescalPos[i];
-                }
-
-                if(sfrom==FROM_PART)
-                {
-                    mass = *(double*)((char*)&(*it)+offset);
-                    mass /=cicVol;
-                }
-
-                //000
-                localCube[0] += rescalPosDown[0]*rescalPosDown[1]*rescalPosDown[2] * mass;
-                //001
-                localCube[1] += rescalPosDown[0]*rescalPosDown[1]*rescalPos[2] * mass;
-                //010
-                localCube[2] += rescalPosDown[0]*rescalPos[1]*rescalPosDown[2] * mass;
-                //011
-                localCube[3] += rescalPosDown[0]*rescalPos[1]*rescalPos[2] * mass;
-                //100
-                localCube[4] += rescalPos[0]*rescalPosDown[1]*rescalPosDown[2] * mass;
-                //101
-                localCube[5] += rescalPos[0]*rescalPosDown[1]*rescalPos[2] * mass;
-                //110
-                localCube[6] += rescalPos[0]*rescalPos[1]*rescalPosDown[2] * mass;
-                //111
-                localCube[7] += rescalPos[0]*rescalPos[1]*rescalPos[2] * mass;
+                rescalPos[i]=(*it).pos[i]-referPos[i];
+                rescalPosDown[i]=latresolution -rescalPos[i];
             }
 
-            (*rho)(xField)+=localCube[0];
-            (*rho)(xField+2)+=localCube[1];
-            (*rho)(xField+1)+=localCube[2];
-            (*rho)(xField+1+2)+=localCube[3];
-            (*rho)(xField+0)+=localCube[4];
-            (*rho)(xField+0+2)+=localCube[5];
-            (*rho)(xField+0+1)+=localCube[6];
-            (*rho)(xField+0+1+2)+=localCube[7];
+            if(sfrom==FROM_PART)
+            {
+                mass = *(double*)((char*)&(*it)+offset);
+                mass /=cicVol;
+            }
+
+            //000
+            localCube[0] += rescalPosDown[0]*rescalPosDown[1]*rescalPosDown[2] * mass;
+            //001
+            localCube[1] += rescalPosDown[0]*rescalPosDown[1]*rescalPos[2] * mass;
+            //010
+            localCube[2] += rescalPosDown[0]*rescalPos[1]*rescalPosDown[2] * mass;
+            //011
+            localCube[3] += rescalPosDown[0]*rescalPos[1]*rescalPos[2] * mass;
+            //100
+            localCube[4] += rescalPos[0]*rescalPosDown[1]*rescalPosDown[2] * mass;
+            //101
+            localCube[5] += rescalPos[0]*rescalPosDown[1]*rescalPos[2] * mass;
+            //110
+            localCube[6] += rescalPos[0]*rescalPos[1]*rescalPosDown[2] * mass;
+            //111
+            localCube[7] += rescalPos[0]*rescalPos[1]*rescalPos[2] * mass;
         }
-    }
+
+        #pragma omp critical
+        {
+        (*rho)(xField)+=localCube[0];
+        (*rho)(xField+2)+=localCube[1];
+        (*rho)(xField+1)+=localCube[2];
+        (*rho)(xField+1+2)+=localCube[3];
+        (*rho)(xField+0)+=localCube[4];
+        (*rho)(xField+0+2)+=localCube[5];
+        (*rho)(xField+0+1)+=localCube[6];
+        (*rho)(xField+0+1+2)+=localCube[7];
+        }
+        
+
+        }
+        // printf("I am thread %d on process %d.\n", omp_get_thread_num(), parallel.world_rank());
+
+    };
+
+    parts->lattice().for_each_part(op, &rho->lattice());
+
+    } /* end of parallel region */
 
 
 }

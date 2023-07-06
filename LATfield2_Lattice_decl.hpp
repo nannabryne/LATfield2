@@ -184,20 +184,33 @@ public:
     int * sizeLocalAllProcDim1();
 
 
-    /* [NEW!] OpenMP stuff */
+    /* * * * * * * * * * * * * * * * * * * *
+    [NEW!] OpenMP stuff 
+    * * * * * * * * * * * * * * * * * * * */
 
     /*!
-    \param local_coord local coordinate to transform (in 3D case: {i,j,k})
-    \return int: flat index 
-    */
+     Transform from local coordinates (non-halo lattice points) to flattened (actual memory) index.
+     \param local_coord local coordinate to transform (in 3D case: {i,j,k})
+     \return int: flat index 
+     */
     int indexTransform(int* local_coord);
 
     /*!
-    \param operation lambda function of LATfield2::Site 
-    \warning only implemented for 3D case (Work in progress)
-    */
+     \brief Perform some operation on each lattice site.
+     \param operation lambda function of Site& containing the computation to be performed in the loop
+     \details Can call this both inside an OpenMP parallel region, in which case it will use that environment, and outside. In the absence of an existing OpenMP parallel region, it will create and kill such an environment automatically iff the -fopenmp flag is given to the compiler, otherwise the function simply iterate through the lattice in the "old" way, using x.first() and so on, and execute the computation in the same way.
+     */
     void for_each(std::function<void(Site&)> operation);
 
+
+
+
+    /*!
+     \brief (function name is misleading) Perform some operation on two lattices of the same size, not counting halo. OpenMP version: four parallelised loops in serial, to avoid race conditions
+     \param operation lambda function of Site& and Site& ontaining the computation to be performed in the loop
+     \param other another Lattice of equal number of sites, belonging to the second argument in 'operation(...)'
+     \details Can call this both inside an OpenMP parallel region, in which case it will use that environment, and outside. In the absence of an existing OpenMP parallel region, it will create and kill such an environment automatically iff the -fopenmp flag is given to the compiler, otherwise the function simply iterate through the lattices in the "old" way, using x.first() and so on, and execute the computation in the same way.
+     */
     void for_each_part(std::function<void(Site&, Site&)> operation, Lattice *other);
     
 
