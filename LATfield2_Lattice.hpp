@@ -446,7 +446,7 @@ int Lattice::indexTransform(int* local_coord){
     // }
 
 	index_flat = halo + local_coord[0];
-	 for(int n=1; n<dim; n++){
+	for(int n=1; n<dim; n++){
 		jump *= ( this->sizeLocal(n-1) + 2*halo );
         index_flat += jump * ( halo + local_coord[n] );
     }
@@ -607,6 +607,7 @@ void Lattice::for_each_part(std::function<void(Site&, Site&)> operation, Lattice
 	}
 
 }
+
 
 
 
