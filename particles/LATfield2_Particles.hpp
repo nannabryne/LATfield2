@@ -736,58 +736,61 @@ Real Particles<part,part_info,part_dataType>::updateVel(Real (*updateVel_funct)(
                int noutput)
 {
 
-    Site  xPart(lat_part_);
-    Site * sites = NULL;
+    Real maxvel = 0.;       // maxmimum velocity
 
-    if(nfields!=0)
-    {
-        sites = new LATfield2::Site[nfields];
-        for(int i = 0;i<nfields;i++)
-        {
-            sites[i].initialize(fields[i]->lattice());
-            sites[i].first();
+    // Site * sites = NULL;    // pointer to sites on fields
+    Lattice * field_lats = NULL;
+    // Site * field_sites = NULL;
+
+    if(nfields!=0) /*if there are fields to consider, initialise lattices */ 
+    {   
+        // COUT << "!  !  Got here \n\n\n";
+        field_lats = new LATfield2::Lattice[nfields];
+        // field_sites = new LATfield2::Site[nfields];
+        for(int l=0; l<nfields; l++){
+            field_lats[l] = fields[l]->lattice();
         }
-    }
+        // COUT << "!  !  And here \n\n\n";
+    }   
+
+
+
+    // if(noutput>0)for(int i=0;i<noutput;i++)
+    // {
+    //     if(reduce_type[i] & (SUM | SUM_LOCAL))
+    //     {
+    //         output[i]=0;
+    //     }
+    //     else if(reduce_type[i] & (MIN | MIN_LOCAL))
+    //     {
+    //         output[i]=9223372036854775807;
+    //     }
+    //     else if(reduce_type[i] & (MAX | MAX_LOCAL))
+    //     {
+    //         output[i]=-9223372036854775807;
+    //     }
+    // }
+
+
+
+    #pragma omp parallel private(output) reduction(max:maxvel)
+    {
+    
 
     typename std::forward_list<part>::iterator it;
-    double frac[3];
-    Real x0;
-    Real maxvel = 0.;
-    Real v2;
-
-    //cout<<"arg"<<endl;
+    double frac[3]; // ???
+    
+    Real v2;        // v^2 
 
 
-    double * output_temp;
-    output_temp =new double[noutput];
+    double * output_temp;   // temporary pointer
+    output_temp = new double[noutput];
 
-    if(noutput>0)for(int i=0;i<noutput;i++)
-    {
-        //COUT<<reduce_type[i]<<endl;
-        if(reduce_type[i] & (SUM | SUM_LOCAL))
+    
+    auto op = [&] (Site& xPart, Site * field_sites){ 
+
+        for (it=(field_part_)(xPart).parts.begin(); it != (field_part_)(xPart).parts.end(); ++it)
         {
-            output[i]=0;
-
-            //COUT<< "sum" <<endl;
-        }
-        else if(reduce_type[i] & (MIN | MIN_LOCAL))
-        {
-            output[i]=9223372036854775807;
-            //COUT<<"min"<<endl;
-        }
-        else if(reduce_type[i] & (MAX | MAX_LOCAL))
-        {
-            output[i]=-9223372036854775807;
-            //COUT<<"max"<<endl;
-        }
-    }
-
-    for(xPart.first() ; xPart.test(); xPart.next())
-    {
-        //if(field_part_(xPart).size!=0)
-        //{
-            for (it=(field_part_)(xPart).parts.begin(); it != (field_part_)(xPart).parts.end(); ++it)
-            {
                 //old fashion uncompatible with runge kutta, frac is in [0,1], but shoud be allowed to be in [-1,2]
                 //to take into account displacements during the runge kutta steps....
                 //when using runge kutta, one have to use the proper projections methods...!!!
@@ -803,6 +806,7 @@ Real Particles<part,part_info,part_dataType>::updateVel(Real (*updateVel_funct)(
                   frac[l] =  (*it).pos[l]*lat_part_.size(l) - xPart.coord(l);
                 }
 
+                
 
 
                 v2 = updateVel_funct(dtau,
@@ -811,60 +815,73 @@ Real Particles<part,part_info,part_dataType>::updateVel(Real (*updateVel_funct)(
                            frac,
                            part_global_info_,
                            fields,
-                           sites,
+                           field_sites,
                            nfields,
                            params,
                            output_temp,
                            noutput);
 
+                 
+
                 if(v2>maxvel)maxvel=v2;
 
-                if(noutput>0)for(int i=0;i<noutput;i++)
-                {
-                    //COUT<<reduce_type[i]<<endl;
-                    if(reduce_type[i] & (SUM | SUM_LOCAL))
-                    {
-                        output[i]+=output_temp[i];
-                    }
-                    else if(reduce_type[i] & (MIN | MIN_LOCAL))
-                    {
-                        if(output[i]>output_temp[i])output[i]=output_temp[i];
-                    }
-                    else if(reduce_type[i] & (MAX | MAX_LOCAL))
-                    {
-                        if(output[i]<output_temp[i])output[i]=output_temp[i];
-                    }
-                }
+    
 
+    //             if(noutput>0)for(int i=0;i<noutput;i++)
+    //             {   
+    //                 #pragma omp critical    // tmp solution!
+    //                 { 
+    //                 if(reduce_type[i] & (SUM | SUM_LOCAL))
+    //                 {   
+    //                     output[i]+=output_temp[i];
+    //                 }
+    //                 else if(reduce_type[i] & (MIN | MIN_LOCAL))
+    //                 {    
+    //                     if(output[i]>output_temp[i])output[i]=output_temp[i];
+    //                 }
+    //                 else if(reduce_type[i] & (MAX | MAX_LOCAL))
+    //                 {   
+    //                     if(output[i]<output_temp[i])output[i]=output_temp[i];
+    //                 }
+    //                 } // end of critical
+    //             }
 
-
-            }
-        //}
-        for(int i=0;i<nfields;i++) sites[i].next();
-    }
-
-    if(noutput>0)for(int i=0;i<noutput;i++)
-    {
-        //COUT<<reduce_type[i]<<endl;
-        if(reduce_type[i] & SUM)
-        {
-            parallel.sum(output[i]);
         }
-        else if(reduce_type[i] & MIN)
-        {
-            parallel.min(output[i]);
-        }
-        else if(reduce_type[i] & MAX)
-        {
-            parallel.max(output[i]);
-        }
-    }
+    //     //
+
+    //     // for(int i=0;i<nfields;i++) sites[i].next(); // auda
+    };
+
+
+    lat_part_.for_each(op, &field_lats, nfields);
+
 
     delete[] output_temp;
-    if(nfields>0) delete[] sites;
+    if(nfields!=0)delete[] field_lats;
+    
+    } // end of OpenMP parallel region
+
+
+    // if(noutput>0)for(int i=0;i<noutput;i++)
+    // {
+    //     //COUT<<reduce_type[i]<<endl;
+    //     if(reduce_type[i] & SUM)
+    //     {
+    //         parallel.sum(output[i]);
+    //     }
+    //     else if(reduce_type[i] & MIN)
+    //     {
+    //         parallel.min(output[i]);
+    //     }
+    //     else if(reduce_type[i] & MAX)
+    //     {
+    //         parallel.max(output[i]);
+    //     }
+    // }
+
+    // if(nfields>0) delete[] sites;
 
     return sqrt(maxvel);
-
 
 }
 

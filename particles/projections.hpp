@@ -134,7 +134,10 @@ void scalarProjectionCIC_project(Particles<part,part_info,part_dataType> * parts
     
 
 
-    auto op = [&] (Site& xPart, Site& xField){
+    auto op = [&] (Site * sites){
+
+        Site xPart = sites[0];
+        Site xField = sites[1];
 
         if(!parts->field()(xPart).parts.empty()){
     
@@ -194,7 +197,7 @@ void scalarProjectionCIC_project(Particles<part,part_info,part_dataType> * parts
 
     };
 
-    parts->lattice().for_each_part(op, &rho->lattice());
+    parts->lattice().for_each(op, &rho->lattice());
 
     } /* end of parallel region */
 
