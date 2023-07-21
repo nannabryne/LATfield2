@@ -469,14 +469,104 @@ void Lattice::for_each(std::function<void(Site&)> operation){
 }
 
 
-void Lattice::for_each_part(std::function<void(Site&, Site&)> operation, Lattice *other){
-	/* (no OpenMP version) usual iterator method */
-	Site x_this(*this);		// e.g. site on particle lattice
-	Site x_other(*other);	// e.g. site on field lattice
-	for(x_this.first(), x_other.first(); x_this.test(); x_this.next(), x_other.next()){
-		operation(x_this, x_other);
+// void Lattice::for_each_part(std::function<void(Site&, Site&)> operation, Lattice *other){
+// 	/* (no OpenMP version) usual iterator method */
+// 	Site x_this(*this);		// e.g. site on particle lattice
+// 	Site x_other(*other);	// e.g. site on field lattice
+// 	for(x_this.first(), x_other.first(); x_this.test(); x_this.next(), x_other.next()){
+// 		operation(x_this, x_other);
+// 	}
+// }
+
+
+void Lattice::for_each(
+        std::function<void(Site *)> onsite_operation, 
+        Lattice ** other_lattices,
+        const int num_lattices,
+		string scheme){
+
+	Site * sites = NULL;
+	sites = new Site[num_lattices];
+	Lattice * lats = NULL;
+	lats = new Lattice[num_lattices];
+	lats[0] = *this;
+	sites[0].initialize(lats[0]);
+
+	for(int l=1; l<num_lattices; l++){
+		lats[l] = *other_lattices[l-1];
+		sites[l].initialize(lats[l]);
+		sites[l].first();
 	}
+
+	for(sites[0].first(); sites[0].test(); sites[0].next()){
+		onsite_operation(sites);
+		for(int l=1; l<num_lattices; l++)sites[l].next(); 
+	}
+
+	delete[] sites;
+
 }
+
+
+void Lattice::for_each(
+        std::function<void(Site&, Site *)> onsite_operation, 
+        Lattice ** other_lattices,
+        const int num_other_lattices,
+        string scheme){
+		
+
+	Site * other_sites = NULL;
+	other_sites = new Site[num_other_lattices];
+
+	for(int l=0; l<num_other_lattices; l++){
+		other_sites[l].initialize(*other_lattices[l]);
+		other_sites[l].first();
+	}
+
+	Site this_site(*this);
+
+	for(this_site.first(); this_site.test(); this_site.next()){
+		onsite_operation(this_site, other_sites);
+		for(int l=0; l<num_other_lattices; l++)other_sites[l].next();
+	}
+
+	delete[] other_sites;
+		
+}
+
+
+
+
+
+// void Lattice::onsiteOperation(
+// 	std::function<void(Site&, Site *)> operation, 
+// 	Lattice ** other, 
+// 	const int num_lattices){
+
+// 	auto Opr = [&](Site * all_sites){
+// 		operation(all_sites[0], &all_sites[1]);
+// 	};
+
+// 	Site * sites = NULL;
+// 	sites = new Site[num_lattices];
+// 	Lattice * lats = NULL;
+// 	lats = new Lattice[num_lattices];
+// 	lats[0] = *this;
+// 	sites[0].initialize(lats[0]);
+
+// 	for(int l=1; l<num_lattices; l++){
+// 		lats[l] = *other[l-1];
+// 		sites[l].initialize(lats[l]);
+// 		sites[l].first();
+// 	}
+
+// 	for(sites[0].first(); sites[0].test(); sites[0].next()){
+// 		Opr(sites);
+// 		for(int l=1; l<num_lattices; l++)sites[l].next(); 
+// 	}
+// }
+
+
 
 
 
@@ -526,85 +616,400 @@ void Lattice::for_each(std::function<void(Site&)> operation){
 }	
 
 
-void Lattice::for_each_part(std::function<void(Site&, Site&)> operation, Lattice *other){
+// void Lattice::for_each_part(std::function<void(Site&, Site&)> operation, Lattice *other){
 
-	/* 
-	The purpose of this iteration division is to avoid race conditions, 
-	in when performing scalar projections. 
+// 	/* 
+// 	The purpose of this iteration division is to avoid race conditions, 
+// 	in when performing scalar projections. 
 
-	SCEME IDEA (one loop):
+// 	SCEME IDEA (one loop):
 
-			x	 x    x    x    x	 x    x    x    x
+// 			x	 x    x    x    x	 x    x    x    x
 		
-		    x	 o    x    x    o	 x    x    o	x
+// 		    x	 o    x    x    o	 x    x    o	x
 
-			x	 x    x    x    x	 x    x    x    x
+// 			x	 x    x    x    x	 x    x    x    x
 	
-			x	 x    x    x    x	 x    x    x    x
+// 			x	 x    x    x    x	 x    x    x    x
 
-			x	 o    x    x    o	 x    x    o	x
+// 			x	 o    x    x    o	 x    x    o	x
 
-			x	 x    x    x    x	 x    x    x    x
+// 			x	 x    x    x    x	 x    x    x    x
 
 
-		here: 2x3=6 iterations that considers a point (o) for which the neighbours (x) are only that of said point
+// 		here: 2x3=6 iterations that considers a point (o) for which the neighbours (x) are only that of said point
 	
-	(the inner loop over i is serialised, so no need to skip sites there)
+// 	(the inner loop over i is serialised, so no need to skip sites there)
 
-	*/
+// 	*/
 	
-	if(this->dim()==3)
-	{
+// 	if(this->dim()==3)
+// 	{
+// 		if(omp_in_parallel()){ // if parallel region exists
+
+// 			/* initialise thread-private variables */
+
+// 			int idx_this, idx_other;
+
+
+// 			auto loop = [&] (int j_start, int k_start, const int incr=2){
+// 				#pragma omp for collapse(2)
+// 				for(int k=k_start; k<this->sizeLocal(2); k+=incr)
+// 					for(int j=j_start; j<this->sizeLocal(1); j+=incr){
+// 						int ijk[] = {0,j,k};
+// 						idx_this = this->indexTransform(ijk);
+// 						idx_other = other->indexTransform(ijk);
+						
+// 						Site x_this(*this, idx_this);
+// 						Site x_other(*other, idx_other);
+// 						for(int i=0; i<this->sizeLocal(0); i++){
+// 							operation(x_this, x_other);	
+// 							x_this.indexAdvance(1);
+// 							x_other.indexAdvance(1);
+// 						}
+// 					}
+// 				// implicit barrier
+// 			};
+
+			
+// 			loop(0,0); 	/* even-even sites */
+// 			loop(1,1); 	/* odd-odd sites */
+// 			loop(1,0); 	/* even-odd sites */
+// 			loop(0,1);	/* odd-even sites */
+
+// 		} 
+// 		else{ // if parallel region does NOT exist 
+
+// 			#pragma omp parallel
+// 			{
+// 				for_each_part(operation, other);
+			
+// 			} // end of parallel region
+// 		}
+// 	}
+// 	else // in the unlikely case of less/more than three dimensions
+// 	{
+// 		Site x_this(*this);		// e.g. site on particle lattice
+// 		Site x_other(*other);	// e.g. site on field lattice
+// 		for(x_this.first(), x_other.first(); x_this.test(); x_this.next(), x_other.next()){
+// 			operation(x_this, x_other);
+// 		}
+// 	}
+
+// }
+
+
+
+
+
+// void Lattice::onsiteOperation(
+// 	std::function<void(Site&, Site *)> operation, 
+// 	Lattice ** other, 
+// 	const int num_lattices){
+
+// 	/* 
+// 		The purpose of this iteration division is to avoid race conditions, 
+// 		in when performing scalar projections. 
+
+// 		SCEME IDEA (one loop):
+
+// 				x	 x    x    x    x	 x    x    x    x
+			
+// 				x	 o    x    x    o	 x    x    o	x
+
+// 				x	 x    x    x    x	 x    x    x    x
+		
+// 				x	 x    x    x    x	 x    x    x    x
+
+// 				x	 o    x    x    o	 x    x    o	x
+
+// 				x	 x    x    x    x	 x    x    x    x
+
+
+// 			here: 2x3=6 iterations that considers a point (o) for which the neighbours (x) are only that of said point
+		
+// 		(the inner loop over i is serialised, so no need to skip sites there)
+
+// 	*/
+
+// 	auto Opr = [&](Site * all_sites){
+// 		operation(all_sites[0], &all_sites[1]);
+// 	};
+	
+// 	if(this->dim()==3)
+// 	{
+// 		if(omp_in_parallel()){ // if parallel region exists
+
+// 			/* initialise thread-private variables */
+
+
+// 			Site * sites = NULL;
+// 			sites = new Site[num_lattices];
+// 			Lattice * lats = NULL;
+// 			lats = new Lattice[num_lattices];
+			
+// 			lats[0] = *this;
+// 			sites[0].initialize(lats[0]);
+
+// 			for(int l=1; l<num_lattices; l++){
+// 				lats[l] = *other[l-1];
+// 				sites[l].initialize(lats[l]);
+// 			}
+
+
+//             auto loop = [&] (int j_start, int k_start, const int incr=2){
+//                 #pragma omp for collapse(2)
+//                 for(int k=k_start; k<this->sizeLocal(2); k+=incr)
+//                     for(int j=j_start; j<this->sizeLocal(1); j+=incr){
+//                         int ijk[] = {0,j,k};
+
+//                         for(int l=0; l<num_lattices; l++)sites[l].initialize(lats[l], (long)lats[l].indexTransform(ijk));
+
+//                         for(int i=0; i<this->sizeLocal(0); i++){
+//                             // operation(sites[0], &sites[1]); 
+// 							Opr(sites); 
+//                             for(int l=0; l<num_lattices; l++)sites[l].indexAdvance(1);
+//                         }
+//                     }
+//                 // implicit barrier
+//             };
+
+			
+// 			loop(0,0); 	/* even-even sites */
+// 			loop(1,1); 	/* odd-odd sites */
+// 			loop(1,0); 	/* even-odd sites */
+// 			loop(0,1);	/* odd-even sites */
+
+// 		} 
+// 		else{ // if parallel region does NOT exist 
+
+// 			#pragma omp parallel
+// 			{
+// 				onsiteOperation(operation, other, num_lattices);
+			
+// 			} // end of parallel region
+// 		}
+// 	}
+// 	else // in the unlikely case of less/more than three dimensions
+// 	{	
+// 		Site * sites = NULL;
+// 		sites = new Site[num_lattices];
+// 		Lattice * lats = NULL;
+// 		lats = new Lattice[num_lattices];
+// 		lats[0] = *this;
+// 		sites[0].initialize(lats[0]);
+
+// 		for(int l=1; l<num_lattices; l++){
+// 			lats[l] = *other[l-1];
+// 			sites[l].initialize(lats[l]);
+// 			sites[l].first();
+// 		}
+
+// 		for(sites[0].first(); sites[0].test(); sites[0].next()){
+// 			Opr(sites);
+// 			for(int l=1; l<num_lattices; l++)sites[l].next(); 
+// 		}
+// 	}
+
+// }
+
+
+
+
+
+
+void Lattice::for_each(
+        std::function<void(Site *)> onsite_operation, 
+        Lattice ** other_lattices,
+        const int num_lattices,
+		string scheme){
+	
+	if(this->dim()==3){
+
 		if(omp_in_parallel()){ // if parallel region exists
 
-			/* initialise thread-private variables */
+			Site * sites = NULL;		sites = new Site[num_lattices];
+			Lattice * lats = NULL;		lats = new Lattice[num_lattices];
+			
+			lats[0] = *this;
+	
+			for(int l=1; l<num_lattices; l++)lats[l] = *other_lattices[l-1];
 
-			int idx_this, idx_other;
 
-
-			auto loop = [&] (int j_start, int k_start, const int incr=2){
+			auto loop = [&] (int j_start=0, int k_start=0, const int incr=1){
 				#pragma omp for collapse(2)
 				for(int k=k_start; k<this->sizeLocal(2); k+=incr)
 					for(int j=j_start; j<this->sizeLocal(1); j+=incr){
 						int ijk[] = {0,j,k};
-						idx_this = this->indexTransform(ijk);
-						idx_other = other->indexTransform(ijk);
-						
-						Site x_this(*this, idx_this);
-						Site x_other(*other, idx_other);
+
+						for(int l=0; l<num_lattices; l++)sites[l].initialize(lats[l], (long)lats[l].indexTransform(ijk));
+
 						for(int i=0; i<this->sizeLocal(0); i++){
-							operation(x_this, x_other);	
-							x_this.indexAdvance(1);
-							x_other.indexAdvance(1);
+							onsite_operation(sites); 
+							for(int l=0; l<num_lattices; l++)sites[l].indexAdvance(1);
 						}
 					}
 				// implicit barrier
 			};
 
-			
-			loop(0,0); 	/* even-even sites */
-			loop(1,1); 	/* odd-odd sites */
-			loop(1,0); 	/* even-odd sites */
-			loop(0,1);	/* odd-even sites */
+			if(scheme=="arbitrary")loop(0,0,1);
+			else if(scheme=="controlled"){ // fix name
+				loop(0,0,2); 	/* even-even sites */
+				loop(1,1,2); 	/* odd-odd sites */
+				loop(1,0,2); 	/* even-odd sites */
+				loop(0,1,2);	/* odd-even sites */
+			}
 
-		} 
-		else{ // if parallel region does NOT exist 
-
+			delete[] sites;
+			// delete[] lats;
+		}
+		else{
 			#pragma omp parallel
 			{
-				for_each_part(operation, other);
+				for_each(onsite_operation, other_lattices, num_lattices, scheme);
+			}
+		}
+
+	}
+	else{ // if dimension is not 3
+
+		Site * sites = NULL;
+		sites = new Site[num_lattices];
+		Lattice * lats = NULL;
+		lats = new Lattice[num_lattices];
+		lats[0] = *this;
+		sites[0].initialize(lats[0]);
+
+		for(int l=1; l<num_lattices; l++){
+			lats[l] = *other_lattices[l-1];
+			sites[l].initialize(lats[l]);
+			sites[l].first();
+		}
+
+		for(sites[0].first(); sites[0].test(); sites[0].next()){
+			onsite_operation(sites);
+			for(int l=1; l<num_lattices; l++)sites[l].next(); 
+		}
+	}
+
+		
+}
+
+
+
+
+void Lattice::for_each(
+        std::function<void(Site&, Site *)> onsite_operation, 
+        Lattice ** other_lattices,
+        const int num_other_lattices,
+        string scheme){
+		
+
+
+	if(this->dim()==3){
+
+		if(omp_in_parallel()){ // if parallel region exists
+
+			Site * other_sites = NULL;
+			other_sites = new Site[num_other_lattices];
+
+			for(int l=0; l<num_other_lattices; l++){
+				// other_sites[l].initialize(*other_lattices[l]);
+				other_sites[l] = Site(*other_lattices[l]);
+				if(l=1)	COUT << other_sites[l].index() ;
+			}
 			
-			} // end of parallel region
+			Site this_site(*this);
+
+			auto loop = [&] (int j_start=0, int k_start=0, const int incr=1){
+				#pragma omp for collapse(2)
+				for(int k=k_start; k<this->sizeLocal(2); k+=incr)
+					for(int j=j_start; j<this->sizeLocal(1); j+=incr){
+						int ijk[] = {0,j,k};
+
+						// Site this_site(*this, (long)this->indexTransform(ijk));
+						this_site.setIndex((long)this->indexTransform(ijk));
+
+						COUT << "1\n";
+						
+						// for(int l=0; l<num_other_lattices; l++){
+						// 	COUT << "1.1\n";
+						// 	long idx = (long)other_lattices[l]->indexTransform(ijk);
+						// 	COUT << "1.2\n";
+						// 	COUT << l;
+						// 	other_sites[l].initialize(*other_lattices[l], idx);
+
+						// }
+						if(num_other_lattices==2){
+
+						long idx = (long)other_lattices[0]->indexTransform(ijk);
+						COUT << "1.1\n";
+						other_sites[0].setIndex(idx);
+						COUT << "1.2\n";
+						idx = (long)(other_lattices[1]->indexTransform(ijk));
+						COUT << "1.3\n";
+						other_sites[1].setIndex(idx);
+						COUT << "1.4\n";
+						}
+						// for(int l=0; l<num_other_lattices; l++)other_sites[l].initialize(*other_lattices[l], (long)other_lattices[l]->indexTransform(ijk));
+
+						COUT << "2\n";
+
+						string text = "here at j = " + to_string(j)+" (process " + to_string(parallel.world_rank()) + ")\n";
+						// if(num_other_lattices==2){
+						// cout << text;
+						// }
+
+
+						for(int i=0; i<this->sizeLocal(0); i++){
+							COUT << "3\n";
+							onsite_operation(this_site, other_sites); 
+
+							this_site.indexAdvance(1);
+							for(int l=0; l<num_other_lattices; l++)other_sites[l].indexAdvance(1);
+							COUT << "4\n";
+						}
+					}
+				// implicit barrier
+			};
+
+
+			if(scheme=="arbitrary")loop(0,0,1);
+			else if(scheme=="controlled"){ // fix name
+				loop(0,0,2); 	/* even-even sites */
+				loop(1,1,2); 	/* odd-odd sites */
+				loop(1,0,2); 	/* even-odd sites */
+				loop(0,1,2);	/* odd-even sites */
+			}
+
+			delete[] other_sites;
+		}
+		else{
+			#pragma omp parallel
+			{
+				for_each(onsite_operation, other_lattices, num_other_lattices, scheme);
+			}
+		}
+
+	}
+	else{ // if dimension is not 3
+
+		Site * other_sites = NULL;
+		other_sites = new Site[num_other_lattices];
+
+		for(int l=0; l<num_other_lattices; l++){
+			other_sites[l].initialize(*other_lattices[l]);
+			other_sites[l].first();
+		}
+
+		Site this_site(*this);
+
+		for(this_site.first(); this_site.test(); this_site.next()){
+			onsite_operation(this_site, other_sites);
+			for(int l=0; l<num_other_lattices; l++)other_sites[l].next(); 
 		}
 	}
-	else // in the unlikely case of less/more than three dimensions
-	{
-		Site x_this(*this);		// e.g. site on particle lattice
-		Site x_other(*other);	// e.g. site on field lattice
-		for(x_this.first(), x_other.first(); x_this.test(); x_this.next(), x_other.next()){
-			operation(x_this, x_other);
-		}
-	}
+
 
 }
 
@@ -613,7 +1018,40 @@ void Lattice::for_each_part(std::function<void(Site&, Site&)> operation, Lattice
 
 
 
-#endif // OpenMP codes
+#endif // OpenMP vs non-OpenMP codes
+
+
+
+void Lattice::for_each(
+        std::function<void(Site *)> onsite_operation, 
+        Lattice *other_lattice,
+        string scheme){
+
+	Lattice * lat_list[1];
+	lat_list[0] = other_lattice;
+	for_each(onsite_operation, lat_list, 2, scheme);
+
+}
+
+
+
+void Lattice::for_each(
+        std::function<void(Site&, Site&)> onsite_operation, 
+        Lattice *other_lattice,
+        string scheme){
+
+	auto op = [&](Site& this_site, Site * other_sites){
+		onsite_operation(this_site, other_sites[0]);
+	};
+	Lattice * lat_list[1];
+	lat_list[0] = other_lattice;
+
+	for_each(op, lat_list, 1, scheme);
+
+}
+
+
+
 
 
 #endif

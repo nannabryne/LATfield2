@@ -208,17 +208,56 @@ public:
     void for_each(std::function<void(Site&)> operation);
 
 
-    /*! \fn void for_each_part(std::function<void(Site&, Site&)> operation, Lattice *other)
+    // /*! \fn void for_each_part(std::function<void(Site&, Site&)> operation, Lattice *other)   TO BE DELETED
      
-     \brief (function name is misleading) Perform some operation on two lattices of the same size, not counting halo. OpenMP version: four parallelised loops in serial, to avoid race conditions
+    //  \brief (function name is misleading) Perform some operation on two lattices of the same size, not counting halo. OpenMP version: four parallelised loops in serial, to avoid race conditions.
 
-     \details Can call this both inside an OpenMP parallel region, in which case it will use that environment, and outside. In the absence of an existing OpenMP parallel region, it will create and kill such an environment automatically iff the -fopenmp flag is given to the compiler, otherwise the function simply iterate through the lattices in the "old" way, using x.first() and so on, and execute the computation in the same way.
+    //  \details Can call this both inside an OpenMP parallel region, in which case it will use that environment, and outside. In the absence of an existing OpenMP parallel region, it will create and kill such an environment automatically iff the -fopenmp flag is given to the compiler, otherwise the function simply iterate through the lattices in the "old" way, using x.first() and so on, and execute the computation in the same way.
 
-     \param operation lambda function of Site& and Site& ontaining the computation to be performed in the loop
-     \param other another Lattice of equal number of sites, belonging to the second argument in 'operation(...)'
+    //  \param operation lambda function of Site& and Site& ontaining the computation to be performed in the loop
+    //  \param other another Lattice of equal number of sites, belonging to the second argument in 'operation(...)'
      
-     */
-    void for_each_part(std::function<void(Site&, Site&)> operation, Lattice *other);
+    //  */
+    // void for_each_part(std::function<void(Site&, Site&)> operation, Lattice *other);
+
+
+
+
+
+    /* TESTING NEW STUFF */
+
+
+    // void onsiteOperation(std::function<void(Site&, Site *)> operation, Lattice ** other, const int num_lattices); // TO BE DELETED
+
+    void for_each(
+        std::function<void(Site *)> onsite_operation, 
+        Lattice ** other_lattices=NULL,
+        const int num_lattices=1,
+        string scheme="arbitrary");
+
+
+    void for_each(
+        std::function<void(Site&, Site *)> onsite_operation, 
+        Lattice ** other_lattices=NULL,
+        const int num_other_lattices=0,
+        string scheme="arbitrary");
+
+
+
+    // Two-lattice case (relevant for e.g. scalar projection)
+    void for_each(
+        std::function<void(Site *)> onsite_operation, 
+        Lattice * other_lattice,
+        string scheme="controlled");
+
+    void for_each(
+        std::function<void(Site&, Site&)> onsite_operation, 
+        Lattice * other_lattice,
+        string scheme="controlled");
+
+    
+
+
 
 
 
