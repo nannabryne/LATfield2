@@ -738,43 +738,37 @@ Real Particles<part,part_info,part_dataType>::updateVel(Real (*updateVel_funct)(
 
     Real maxvel = 0.;       // maxmimum velocity
 
-    // if(noutput>0)for(int i=0;i<noutput;i++)
-    // {
-    //     if(reduce_type[i] & (SUM | SUM_LOCAL))
-    //     {
-    //         output[i]=0;
-    //     }
-    //     else if(reduce_type[i] & (MIN | MIN_LOCAL))
-    //     {
-    //         output[i]=9223372036854775807;
-    //     }
-    //     else if(reduce_type[i] & (MAX | MAX_LOCAL))
-    //     {
-    //         output[i]=-9223372036854775807;
-    //     }
-    // }
 
-    #pragma omp parallel private(output, maxvel)// reduction(max:maxvel)
-    {
+    /* Provide start value for reduction operations */
+    if(noutput>0)for(int i=0;i<noutput;i++){
+        if(reduce_type[i] & (SUM | SUM_LOCAL))output[i] = 0.;
+        else if(reduce_type[i] & (MIN | MIN_LOCAL))output[i] = + MAX_NUMBER;
+        else if(reduce_type[i] & (MAX | MAX_LOCAL))output[i] = - MAX_NUMBER;
+    }
+
+
+    /* 
+    Cannot (trivially) use reduction clause from OpenMP lib 
+    when there are several different reduction operations to be done.
+    Solution -> brute force using critcal directive 
+        (should be equally fast?)
+    */
     
+    #pragma omp parallel reduction(max:maxvel) 
+    {  /* ======================= OpenMP parallel region ======================= */
 
 
-    typename std::forward_list<part>::iterator it;
+    typename std::forward_list<part>::iterator it;  // particle list iterator
     double frac[3]; // ???
     
     Real v2;        // v^2 
 
 
-    double * output_temp;   // temporary pointer
-    output_temp = new double[noutput];
+    double * output_tmp;   // temporary pointer (thread-private)
+    output_tmp = new double[noutput];
 
     
     auto op = [&] (Site& xPart, Site * field_sites){ 
-
-        Real t=0.;
-        if(nfields>0)t = (*fields[0])(field_sites[0],2);
-
-        // COUT << t << endl;
 
         for (it=(field_part_)(xPart).parts.begin(); it != (field_part_)(xPart).parts.end(); ++it)
         {
@@ -803,7 +797,7 @@ Real Particles<part,part_info,part_dataType>::updateVel(Real (*updateVel_funct)(
                            field_sites,
                            nfields,
                            params,
-                           output_temp,
+                           output_tmp,
                            noutput);
 
                  
@@ -811,59 +805,43 @@ Real Particles<part,part_info,part_dataType>::updateVel(Real (*updateVel_funct)(
                 if(v2>maxvel)maxvel=v2;
 
 
-    //             if(noutput>0)for(int i=0;i<noutput;i++)
-    //             {   
-    //                 #pragma omp critical    // tmp solution!
-    //                 { 
-    //                 if(reduce_type[i] & (SUM | SUM_LOCAL))
-    //                 {   
-    //                     output[i]+=output_temp[i];
-    //                 }
-    //                 else if(reduce_type[i] & (MIN | MIN_LOCAL))
-    //                 {    
-    //                     if(output[i]>output_temp[i])output[i]=output_temp[i];
-    //                 }
-    //                 else if(reduce_type[i] & (MAX | MAX_LOCAL))
-    //                 {   
-    //                     if(output[i]<output_temp[i])output[i]=output_temp[i];
-    //                 }
-    //                 } // end of critical
-    //             }
+                if(noutput>0)for(int i=0;i<noutput;i++)
+                {   
+                    #pragma omp critical // ! Should discuss placment of this
+                    { /* ----------- critical region ----------- */
+                    if(reduce_type[i] & (SUM | SUM_LOCAL)){   
+                        output[i] += output_tmp[i];
+                    }
+                    else if(reduce_type[i] & (MIN | MIN_LOCAL)){    
+                        if(output[i]>output_tmp[i])output[i] = output_tmp[i];
+                    }
+                    else if(reduce_type[i] & (MAX | MAX_LOCAL)){   
+                        if(output[i]<output_tmp[i])output[i] = output_tmp[i];
+                    }
+                    } /* ----------- end of critical region ----------- */
+                }
 
         }
-    //     //
 
-    //     // for(int i=0;i<nfields;i++) sites[i].next(); // auda
     };
 
 
     lat_part_.for_each(op, fields, nfields);
-
-
-    delete[] output_temp;
-    // if(nfields!=0)delete field_lats;
     
-    } // end of OpenMP parallel region
+    delete[] output_tmp;
+    
+    } /* ======================= end of OpenMP parallel region ======================= */
 
 
-    // if(noutput>0)for(int i=0;i<noutput;i++)
-    // {
-    //     //COUT<<reduce_type[i]<<endl;
-    //     if(reduce_type[i] & SUM)
-    //     {
-    //         parallel.sum(output[i]);
-    //     }
-    //     else if(reduce_type[i] & MIN)
-    //     {
-    //         parallel.min(output[i]);
-    //     }
-    //     else if(reduce_type[i] & MAX)
-    //     {
-    //         parallel.max(output[i]);
-    //     }
-    // }
+    // parallel.max(maxvel);
 
-    // if(nfields>0) delete[] sites;
+    /* Gather output from different MPI tasks */
+    if(noutput>0)for(int i=0;i<noutput;i++){
+        if(reduce_type[i] & SUM)parallel.sum(output[i]);
+        else if(reduce_type[i] & MIN)parallel.min(output[i]);
+        else if(reduce_type[i] & MAX)parallel.max(output[i]);
+    }
+
 
     return sqrt(maxvel);
 
