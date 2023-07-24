@@ -738,23 +738,6 @@ Real Particles<part,part_info,part_dataType>::updateVel(Real (*updateVel_funct)(
 
     Real maxvel = 0.;       // maxmimum velocity
 
-    // Site * sites = NULL;    // pointer to sites on fields
-    Lattice * field_lats = NULL;
-    // Site * field_sites = NULL;
-
-    if(nfields!=0) /*if there are fields to consider, initialise lattices */ 
-    {   
-        // COUT << "!  !  Got here \n\n\n";
-        field_lats = new LATfield2::Lattice[nfields];
-        // field_sites = new LATfield2::Site[nfields];
-        for(int l=0; l<nfields; l++){
-            field_lats[l] = fields[l]->lattice();
-        }
-        // COUT << "!  !  And here \n\n\n";
-    }   
-
-
-
     // if(noutput>0)for(int i=0;i<noutput;i++)
     // {
     //     if(reduce_type[i] & (SUM | SUM_LOCAL))
@@ -771,11 +754,10 @@ Real Particles<part,part_info,part_dataType>::updateVel(Real (*updateVel_funct)(
     //     }
     // }
 
-
-
-    #pragma omp parallel private(output) reduction(max:maxvel)
+    #pragma omp parallel private(output, maxvel)// reduction(max:maxvel)
     {
     
+
 
     typename std::forward_list<part>::iterator it;
     double frac[3]; // ???
@@ -788,6 +770,11 @@ Real Particles<part,part_info,part_dataType>::updateVel(Real (*updateVel_funct)(
 
     
     auto op = [&] (Site& xPart, Site * field_sites){ 
+
+        Real t=0.;
+        if(nfields>0)t = (*fields[0])(field_sites[0],2);
+
+        // COUT << t << endl;
 
         for (it=(field_part_)(xPart).parts.begin(); it != (field_part_)(xPart).parts.end(); ++it)
         {
@@ -807,8 +794,6 @@ Real Particles<part,part_info,part_dataType>::updateVel(Real (*updateVel_funct)(
                 }
 
                 
-
-
                 v2 = updateVel_funct(dtau,
                            lat_resolution_,
                            &(*it),
@@ -825,7 +810,6 @@ Real Particles<part,part_info,part_dataType>::updateVel(Real (*updateVel_funct)(
 
                 if(v2>maxvel)maxvel=v2;
 
-    
 
     //             if(noutput>0)for(int i=0;i<noutput;i++)
     //             {   
@@ -853,11 +837,11 @@ Real Particles<part,part_info,part_dataType>::updateVel(Real (*updateVel_funct)(
     };
 
 
-    lat_part_.for_each(op, &field_lats, nfields);
+    lat_part_.for_each(op, fields, nfields);
 
 
     delete[] output_temp;
-    if(nfields!=0)delete[] field_lats;
+    // if(nfields!=0)delete field_lats;
     
     } // end of OpenMP parallel region
 
