@@ -1778,6 +1778,7 @@ void Particles<part,part_info,part_dataType>::moveParticles( void (*move_funct)(
     cout<<parallel.rank()<<"; move start"<<endl;
 #endif
 
+
     parallel.barrier();
 
     LATfield2::Site x(lat_part_);
@@ -1821,31 +1822,21 @@ void Particles<part,part_info,part_dataType>::moveParticles( void (*move_funct)(
     }
 
 
-    double * output_temp;
-    output_temp =new double[noutput];
+    // double * output_temp;   // temporary pointer (DeleteME)
+    // output_temp = new double[noutput];
 
-    if(noutput>0)for(int i=0;i<noutput;i++)
-    {
-        //COUT<<reduce_type[i]<<endl;
-        if(reduce_type[i] & (SUM | SUM_LOCAL))
-        {
-            output[i]=0;
+    
 
-            //COUT<< "sum" <<endl;
-        }
-        else if(reduce_type[i] & (MIN | MIN_LOCAL))
-        {
-            output[i]=MAX_NUMBER;
-            //COUT<<"min"<<endl;
-        }
-        else if(reduce_type[i] & (MAX | MAX_LOCAL))
-        {
-            output[i]=-MAX_NUMBER;
-            //COUT<<"max"<<endl;
-        }
+    /* Provide reference values for reductions */
+    if(noutput>0)for(int i=0;i<noutput;i++){
+        if(reduce_type[i] & (SUM | SUM_LOCAL))output[i] = 0;
+        else if(reduce_type[i] & (MIN | MIN_LOCAL))output[i] = MAX_NUMBER;
+        else if(reduce_type[i] & (MAX | MAX_LOCAL))output[i] = -MAX_NUMBER;
     }
 
     //part partTest;
+
+    /* SWAP THIS FOR OPENMP CODE:
     
     for(x.first();x.test();x.next())
     {
@@ -1888,31 +1879,90 @@ void Particles<part,part_info,part_dataType>::moveParticles( void (*move_funct)(
         
         if(nfields!=0) for(int i=0;i<nfields;i++) sites[i].next();
     }
+    */
+
     
-    if(noutput>0)for(int i=0;i<noutput;i++)
-    {
-        //COUT<<reduce_type[i]<<endl;
-        if(reduce_type[i] & SUM)
-        {
-            parallel.sum(output[i]);
+
+    #pragma omp parallel private(it, frac, x0)
+    { /* ======================= OpenMP parallel region ======================= */
+
+    double * output_tmp;   // temporary pointer
+    output_tmp = new double[noutput];
+    for(int n=0; n<noutput; n++)output_tmp[n] = output[n];
+
+
+    auto op1 = [&] (Site& part_site, Site * field_sites){
+        
+        for(it=(field_part_)(part_site).parts.begin(); it != (field_part_)(part_site).parts.end(); ++it){
+        	
+            for(int l=0; l<3; l++)frac[l] = modf( (*it).pos[l] * lat_part_.size(l), &x0);
+
+            COUT << "Hey\n";
+            move_funct(dtau,
+                       lat_resolution_,
+                       &(*it),
+                       frac,
+                       part_global_info_,
+                       fields,
+                       field_sites,
+                       nfields,
+                       params,
+                       output_tmp,
+                       noutput);
+
+            
+            if(noutput>0)for(int i=0; i<noutput; i++){
+                #pragma omp critical
+                { /* ----------- critical region ----------- */
+                if(reduce_type[i] & (SUM | SUM_LOCAL)){
+                    output[i] += output_tmp[i];
+                } else if(reduce_type[i] & (MIN | MIN_LOCAL)){
+                    if(output[i]>output_tmp[i])output[i] = output_tmp[i];
+                } else if(reduce_type[i] & (MAX | MAX_LOCAL)){
+                    if(output[i]<output_tmp[i])output[i] = output_tmp[i];
+                }
+                } /* ----------- end of critical region ----------- */
+            }
         }
-        else if(reduce_type[i] & MIN)
-        {
-            parallel.min(output[i]);
-        }
-        else if(reduce_type[i] & MAX)
-        {
-            parallel.max(output[i]);
-        }
+
+
+    };
+
+    COUT << "for each ... \n";
+    lat_part_.for_each(op1, fields, nfields);
+
+
+    delete[] output_tmp;
+
+    } /* ======================= end of OpenMP parallel region ======================= */
+
+    
+
+    /* Gather output from different MPI tasks */
+    if(noutput>0)for(int i=0;i<noutput;i++){
+             if(reduce_type[i] & SUM)parallel.sum(output[i]);
+        else if(reduce_type[i] & MIN)parallel.min(output[i]);
+        else if(reduce_type[i] & MAX)parallel.max(output[i]);
     }
-    delete[] output_temp;
+
+
+    // delete[] output_temp;
+
+
+
+    /* ------------------------------------------------------- */
+    /*  some part of comp. is done  */   
+
+
+
+
     
     int partRanks[2];
     int thisRanks[2];
     thisRanks[0] = parallel.grid_rank()[0];
     thisRanks[1] = parallel.grid_rank()[1];
 
-    for(x.first();x.test();x.next())
+    for(x.first();x.test();x.next()) // openmp from here?
     {
 //        if(field_part_(x).size!=0)
 //        {
@@ -2107,7 +2157,7 @@ void Particles<part,part_info,part_dataType>::moveParticles( void (*move_funct)(
 
 //        if(nfields!=0) for(int i=0;i<nfields;i++) sites[i].next();
 
-    }
+    } // (loop ofer sites)
 
 
 
@@ -2752,8 +2802,8 @@ void Particles<part,part_info,part_dataType>::moveParticles( void (*move_funct)(
     delete[] recBuffer;
 
   if(nfields!=0 && sites) { delete[] sites; sites = NULL; };
-
-}
+ 
+}   // ******* end of function moveParticles(...) *******
 
 
 
