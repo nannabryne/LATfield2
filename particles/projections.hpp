@@ -111,92 +111,86 @@ void scalarProjectionCIC_project(Particles<part,part_info,part_dataType> * parts
     cicVol *= cicVol;
 
 
-
     #pragma omp parallel
     { /* ======================= OpenMP parallel region ======================= */
 
-    double referPos[3];
-    double rescalPos[3];
-    double rescalPosDown[3];
+        double referPos[3];
+        double rescalPos[3];
+        double rescalPosDown[3];
 
-    double mass;
-   
-
-    Real localCube[8]; // XYZ = 000 | 001 | 010 | 011 | 100 | 101 | 110 | 111
-
-    if(sfrom == FROM_INFO)
-    {
-        mass = *(double*)((char*)parts->parts_info() + offset);
-        mass /= cicVol;
-        //cout << mass<<endl;
-    }
-
+        double mass;
     
 
+        Real localCube[8]; // XYZ = 000 | 001 | 010 | 011 | 100 | 101 | 110 | 111
 
-    auto op = [&] (Site * sites){
-
-        Site xPart = sites[0];
-        Site xField = sites[1];
-
-        if(!parts->field()(xPart).parts.empty()){
-    
-
-        for(int i=0;i<3;i++)referPos[i]=xPart.coord(i)*latresolution;
-        for(int i=0;i<8;i++)localCube[i]=0;
-
-        typename std::forward_list<part>::iterator it;
-
-        for (it=(parts->field())(xPart).parts.begin(); it != (parts->field())(xPart).parts.end(); ++it)
+        if(sfrom == FROM_INFO)
         {
-            for(int i =0;i<3;i++)
-            {
-                rescalPos[i]=(*it).pos[i]-referPos[i];
-                rescalPosDown[i]=latresolution -rescalPos[i];
-            }
-
-            if(sfrom==FROM_PART)
-            {
-                mass = *(double*)((char*)&(*it)+offset);
-                mass /=cicVol;
-            }
-
-            //000
-            localCube[0] += rescalPosDown[0]*rescalPosDown[1]*rescalPosDown[2] * mass;
-            //001
-            localCube[1] += rescalPosDown[0]*rescalPosDown[1]*rescalPos[2] * mass;
-            //010
-            localCube[2] += rescalPosDown[0]*rescalPos[1]*rescalPosDown[2] * mass;
-            //011
-            localCube[3] += rescalPosDown[0]*rescalPos[1]*rescalPos[2] * mass;
-            //100
-            localCube[4] += rescalPos[0]*rescalPosDown[1]*rescalPosDown[2] * mass;
-            //101
-            localCube[5] += rescalPos[0]*rescalPosDown[1]*rescalPos[2] * mass;
-            //110
-            localCube[6] += rescalPos[0]*rescalPos[1]*rescalPosDown[2] * mass;
-            //111
-            localCube[7] += rescalPos[0]*rescalPos[1]*rescalPos[2] * mass;
+            mass = *(double*)((char*)parts->parts_info() + offset);
+            mass /= cicVol;
+            //cout << mass<<endl;
         }
 
-        #pragma omp critical (_LOCAL_CUBE_)
-        {
-        (*rho)(xField)+=localCube[0];
-        (*rho)(xField+2)+=localCube[1];
-        (*rho)(xField+1)+=localCube[2];
-        (*rho)(xField+1+2)+=localCube[3];
-        (*rho)(xField+0)+=localCube[4];
-        (*rho)(xField+0+2)+=localCube[5];
-        (*rho)(xField+0+1)+=localCube[6];
-        (*rho)(xField+0+1+2)+=localCube[7];
-        }
+
+        auto op = [&] (Site& xPart, Site& xField){
+
+            if(!parts->field()(xPart).parts.empty()){
         
 
-        }
+            for(int i=0;i<3;i++)referPos[i]=xPart.coord(i)*latresolution;
+            for(int i=0;i<8;i++)localCube[i]=0;
 
-    };
+            typename std::forward_list<part>::iterator it;
 
-    parts->lattice().for_each(op, &rho->lattice());
+            for (it=(parts->field())(xPart).parts.begin(); it != (parts->field())(xPart).parts.end(); ++it)
+            {
+                for(int i =0;i<3;i++)
+                {
+                    rescalPos[i]=(*it).pos[i]-referPos[i];
+                    rescalPosDown[i]=latresolution -rescalPos[i];
+                }
+
+                if(sfrom==FROM_PART)
+                {
+                    mass = *(double*)((char*)&(*it)+offset);
+                    mass /=cicVol;
+                }
+
+                //000
+                localCube[0] += rescalPosDown[0]*rescalPosDown[1]*rescalPosDown[2] * mass;
+                //001
+                localCube[1] += rescalPosDown[0]*rescalPosDown[1]*rescalPos[2] * mass;
+                //010
+                localCube[2] += rescalPosDown[0]*rescalPos[1]*rescalPosDown[2] * mass;
+                //011
+                localCube[3] += rescalPosDown[0]*rescalPos[1]*rescalPos[2] * mass;
+                //100
+                localCube[4] += rescalPos[0]*rescalPosDown[1]*rescalPosDown[2] * mass;
+                //101
+                localCube[5] += rescalPos[0]*rescalPosDown[1]*rescalPos[2] * mass;
+                //110
+                localCube[6] += rescalPos[0]*rescalPos[1]*rescalPosDown[2] * mass;
+                //111
+                localCube[7] += rescalPos[0]*rescalPos[1]*rescalPos[2] * mass;
+            }
+
+            #pragma omp critical (_LOCAL_CUBE_)
+            {
+                (*rho)(xField)+=localCube[0];
+                (*rho)(xField+2)+=localCube[1];
+                (*rho)(xField+1)+=localCube[2];
+                (*rho)(xField+1+2)+=localCube[3];
+                (*rho)(xField+0)+=localCube[4];
+                (*rho)(xField+0+2)+=localCube[5];
+                (*rho)(xField+0+1)+=localCube[6];
+                (*rho)(xField+0+1+2)+=localCube[7];
+            }
+            
+
+            }
+
+        };
+
+        parts->lattice().for_each(op, &rho->lattice(), "controlled");
 
     } /* ======================= (end of OpenMP parallel region) ======================= */
 
@@ -441,22 +435,15 @@ void vertexProjectionCIC_comm(Field<Real> * vel)
 template<typename part, typename part_info, typename part_dataType>
 void vectorProjectionCICNGP_project(Particles<part,part_info,part_dataType> * parts,Field<Real> * vel, size_t * oset = NULL,int flag_where = FROM_INFO)
 {
-    Site xPart(parts->lattice());
-    Site xVel(vel->lattice());
+    // Site xPart(parts->lattice());
+    // Site xVel(vel->lattice());
+    
 
-    typename std::forward_list<part>::iterator it;
-
-    double vi[36];//3 * 4 v0:0..3 v1:4..7 v2:8..11
-
-    double mass;
+    
     double latresolution = parts->res();
 
     double cicVol = latresolution * latresolution * latresolution;
 
-    double weightScalarGridDown[3];
-    double weightScalarGridUp[3];
-
-    double referPos[3];
 
 
     int sfrom;
@@ -479,92 +466,116 @@ void vectorProjectionCICNGP_project(Particles<part,part_info,part_dataType> * pa
         offset_vel = oset[1];
     }
 
-    if(sfrom == FROM_INFO)
-    {
-        mass = *(double*)((char*)parts->parts_info() + offset_mass);
-        mass /= cicVol;
-        //cout << mass<<endl;
-    }
+   
+
+    #pragma omp parallel
+    { /* ======================= OpenMP parallel region ======================= */
+        
+        typename std::forward_list<part>::iterator it;
+
+        // double vi[36]; // 3 * 4 v0:0..3 v1:4..7 v2:8..11
+        double vi[12];
+
+        double weightScalarGridDown[3];
+        double weightScalarGridUp[3];
+
+        double referPos[3];
 
 
-
-    for(xPart.first(),xVel.first();xPart.test();xPart.next(),xVel.next())
-    {
-        if(parts->field()(xPart).size!=0)
+        double mass;
+        if(sfrom == FROM_INFO)
         {
-            for(int i=0;i<3;i++)
+            mass = *(double*)((char*)parts->parts_info() + offset_mass);
+            mass /= cicVol;
+            //cout << mass<<endl;
+        }
 
-                referPos[i] = xPart.coord(i)*latresolution;
+        auto op = [&] (Site& xPart, Site& xVel){
 
-            for(int i=0;i<12;i++)vi[i]=0.0;
-
-            for (it=(parts->field())(xPart).parts.begin(); it != (parts->field())(xPart).parts.end(); ++it)
+            // if(parts->field()(xPart).size!=0)
+            if(!parts->field()(xPart).parts.empty())
             {
-                for(int i =0;i<3;i++)
+                for(int i=0;i<3;i++)referPos[i] = xPart.coord(i)*latresolution;
+
+                for(int i=0;i<12;i++)vi[i]=0.0;
+
+                for(it=(parts->field())(xPart).parts.begin(); it != (parts->field())(xPart).parts.end(); ++it)
                 {
-                    weightScalarGridUp[i] = ((*it).pos[i] - referPos[i]) / latresolution;
-                    weightScalarGridDown[i] = 1.0l - weightScalarGridUp[i];
+                    for(int i =0;i<3;i++)
+                    {
+                        weightScalarGridUp[i] = ((*it).pos[i] - referPos[i]) / latresolution;
+                        weightScalarGridDown[i] = 1.0l - weightScalarGridUp[i];
+                    }
+
+
+                    double massVel;
+                    Real * v;
+
+                    if(sfrom==FROM_PART)
+                    {
+                        mass = *(double*)((char*)&(*it)+offset_mass);
+                        mass /= cicVol;
+                    }
+                    v = (Real*)((char*)&(*it)+offset_vel);
+                    //cout<< v[0]<<" , "<<v[1]<<" , "<<v[2]<<endl;
+
+                    massVel = mass*v[0];
+
+                    vi[0] +=  massVel * weightScalarGridDown[1] * weightScalarGridDown[2] ;
+                    vi[1] +=  massVel * weightScalarGridUp[1]   * weightScalarGridDown[2] ;
+                    vi[2] +=  massVel * weightScalarGridDown[1] * weightScalarGridUp[2] ;
+                    vi[3] +=  massVel * weightScalarGridUp[1]   * weightScalarGridUp[2] ;
+
+                    //working on v1
+
+                    massVel = mass*v[1];
+
+                    vi[4] +=  massVel * weightScalarGridDown[0] * weightScalarGridDown[2] ;
+                    vi[5] +=  massVel * weightScalarGridUp[0]   * weightScalarGridDown[2] ;
+                    vi[6] +=  massVel * weightScalarGridDown[0] * weightScalarGridUp[2] ;
+                    vi[7] +=  massVel * weightScalarGridUp[0]   * weightScalarGridUp[2] ;
+
+                    //working on v2
+
+                    massVel = mass*v[2];
+
+                    vi[8] +=  massVel * weightScalarGridDown[0] * weightScalarGridDown[1] ;
+                    vi[9] +=  massVel * weightScalarGridUp[0]   * weightScalarGridDown[1] ;
+                    vi[10]+=  massVel * weightScalarGridDown[0] * weightScalarGridUp[1] ;
+                    vi[11]+=  massVel * weightScalarGridUp[0]   * weightScalarGridUp[1] ;
+
                 }
 
-
-                double massVel;
-                Real * v;
-
-                if(sfrom==FROM_PART)
+                #pragma omp critical (_LOCAL_CUBE_)
                 {
-                    mass = *(double*)((char*)&(*it)+offset_mass);
-                    mass /= cicVol;
+
+                    (*vel)(xVel,0)+=vi[0];
+                    (*vel)(xVel,1)+=vi[4];
+                    (*vel)(xVel,2)+=vi[8];
+
+                    (*vel)(xVel+0,1)+=vi[5];
+                    (*vel)(xVel+0,2)+=vi[9];
+
+                    (*vel)(xVel+1,0)+=vi[1];
+                    (*vel)(xVel+1,2)+=vi[10];
+
+                    (*vel)(xVel+2,0)+=vi[2];
+                    (*vel)(xVel+2,1)+=vi[6];
+
+                    (*vel)(xVel+1+2,0)+=vi[3];
+                    (*vel)(xVel+0+2,1)+=vi[7];
+                    (*vel)(xVel+0+1,2)+=vi[11];
+
                 }
-                v = (Real*)((char*)&(*it)+offset_vel);
-                //cout<< v[0]<<" , "<<v[1]<<" , "<<v[2]<<endl;
 
-                massVel = mass*v[0];
-
-                vi[0] +=  massVel * weightScalarGridDown[1] * weightScalarGridDown[2] ;
-                vi[1] +=  massVel * weightScalarGridUp[1]   * weightScalarGridDown[2] ;
-                vi[2] +=  massVel * weightScalarGridDown[1] * weightScalarGridUp[2] ;
-                vi[3] +=  massVel * weightScalarGridUp[1]   * weightScalarGridUp[2] ;
-
-                //working on v1
-
-                massVel = mass*v[1];
-
-                vi[4] +=  massVel * weightScalarGridDown[0] * weightScalarGridDown[2] ;
-                vi[5] +=  massVel * weightScalarGridUp[0]   * weightScalarGridDown[2] ;
-                vi[6] +=  massVel * weightScalarGridDown[0] * weightScalarGridUp[2] ;
-                vi[7] +=  massVel * weightScalarGridUp[0]   * weightScalarGridUp[2] ;
-
-                //working on v2
-
-                massVel = mass*v[2];
-
-                vi[8] +=  massVel * weightScalarGridDown[0] * weightScalarGridDown[1] ;
-                vi[9] +=  massVel * weightScalarGridUp[0]   * weightScalarGridDown[1] ;
-                vi[10]+=  massVel * weightScalarGridDown[0] * weightScalarGridUp[1] ;
-                vi[11]+=  massVel * weightScalarGridUp[0]   * weightScalarGridUp[1] ;
 
             }
+        };
+
+        parts->lattice().for_each(op, &vel->lattice(), "controlled");
 
 
-            (*vel)(xVel,0)+=vi[0];
-            (*vel)(xVel,1)+=vi[4];
-            (*vel)(xVel,2)+=vi[8];
-
-            (*vel)(xVel+0,1)+=vi[5];
-            (*vel)(xVel+0,2)+=vi[9];
-
-            (*vel)(xVel+1,0)+=vi[1];
-            (*vel)(xVel+1,2)+=vi[10];
-
-            (*vel)(xVel+2,0)+=vi[2];
-            (*vel)(xVel+2,1)+=vi[6];
-
-            (*vel)(xVel+1+2,0)+=vi[3];
-            (*vel)(xVel+0+2,1)+=vi[7];
-            (*vel)(xVel+0+1,2)+=vi[11];
-
-        }
-    }
+    } /* ======================= (end of OpenMP parallel region) ======================= */
 
 }
 
