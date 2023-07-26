@@ -721,7 +721,6 @@ void Lattice::for_each(
 						for(int l=0; l<num_other_lattices; l++)other_sites[l].setIndex((long)other_lattices[l]->indexTransform(ijk));
 
 						for(int i=0; i<this->sizeLocal(0); i++){
-							COUT << "3\n";
 							onsite_operation(this_site, other_sites); 
 
 							this_site.indexAdvance(1);
