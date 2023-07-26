@@ -1942,6 +1942,8 @@ void Particles<part,part_info,part_dataType>::moveParticles( void (*move_funct)(
             }
 
 
+            // string msg = "Rank: (" + to_string(thisRanks[0]) + ", " + to_string(thisRanks[1]) + ")\n";
+            // if(partRanks[0]!=thisRanks[0] || partRanks[1]!=thisRanks[1])cout << msg;
             // #pragma omp critical
             // { /* ----------- critical region ----------- */
 
