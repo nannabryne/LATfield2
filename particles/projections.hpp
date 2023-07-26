@@ -113,7 +113,7 @@ void scalarProjectionCIC_project(Particles<part,part_info,part_dataType> * parts
 
 
     #pragma omp parallel
-    {
+    { /* ======================= OpenMP parallel region ======================= */
 
     double referPos[3];
     double rescalPos[3];
@@ -179,7 +179,7 @@ void scalarProjectionCIC_project(Particles<part,part_info,part_dataType> * parts
             localCube[7] += rescalPos[0]*rescalPos[1]*rescalPos[2] * mass;
         }
 
-        #pragma omp critical
+        #pragma omp critical (_LOCAL_CUBE_)
         {
         (*rho)(xField)+=localCube[0];
         (*rho)(xField+2)+=localCube[1];
@@ -193,13 +193,12 @@ void scalarProjectionCIC_project(Particles<part,part_info,part_dataType> * parts
         
 
         }
-        // printf("I am thread %d on process %d.\n", omp_get_thread_num(), parallel.world_rank());
 
     };
 
     parts->lattice().for_each(op, &rho->lattice());
 
-    } /* end of parallel region */
+    } /* ======================= (end of OpenMP parallel region) ======================= */
 
 
 }
