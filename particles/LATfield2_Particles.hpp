@@ -758,94 +758,94 @@ Real Particles<part,part_info,part_dataType>::updateVel(Real (*updateVel_funct)(
     {  /* ======================= OpenMP parallel region ======================= */
 
 
-    typename std::forward_list<part>::iterator it;  // particle list iterator
-    double frac[3];
-    Real v2;        // v^2 
+        typename std::forward_list<part>::iterator it;  // particle list iterator
+        double frac[3];
+        Real v2;        // v^2 
 
 
-    double * output_tmp;   // temporary pointer (thread-private)
-    output_tmp = new double[noutput];
+        double * output_tmp;   // temporary pointer (thread-private)
+        output_tmp = new double[noutput];
 
-    
-    auto op = [&] (Site& xPart, Site * field_sites){ 
+        
+        auto op = [&] (Site& xPart, Site * field_sites){ 
 
-        for (it=(field_part_)(xPart).parts.begin(); it != (field_part_)(xPart).parts.end(); ++it)
-        { /* >----o----< loop over particles on each site >----o----< */
+            for (it=(field_part_)(xPart).parts.begin(); it != (field_part_)(xPart).parts.end(); ++it)
+            { /* >----o----< loop over particles on each site >----o----< */
 
-            /* COMMENT:
-            //old fashion uncompatible with runge kutta, frac is in [0,1], but shoud be allowed to be in [-1,2]
-            //to take into account displacements during the runge kutta steps....
-            //when using runge kutta, one have to use the proper projections methods...!!!
-            //what a crap:
-            // new method still compatible with previous methodology.... but! frac is still the offeset of the particles
-            // in respect to the lowest corner of the cell where the particle is. (but in the runge kutta step, it is the cells
-            // where the particle is at the beginning of the runge kutta (NOT THE ONE OF THE RK SUBSTEP!!!!))
-            */
+                /* COMMENT:
+                //old fashion uncompatible with runge kutta, frac is in [0,1], but shoud be allowed to be in [-1,2]
+                //to take into account displacements during the runge kutta steps....
+                //when using runge kutta, one have to use the proper projections methods...!!!
+                //what a crap:
+                // new method still compatible with previous methodology.... but! frac is still the offeset of the particles
+                // in respect to the lowest corner of the cell where the particle is. (but in the runge kutta step, it is the cells
+                // where the particle is at the beginning of the runge kutta (NOT THE ONE OF THE RK SUBSTEP!!!!))
+                */
 
-            //for (int l=0; l<3; l++)
-            //    frac[l] = modf( (*it).pos[l] / lat_resolution_, &x0);
-            for (int l=0; l<3; l++)frac[l] = (*it).pos[l]*lat_part_.size(l) - xPart.coord(l);
-            
-            v2 = updateVel_funct(dtau,
-                    lat_resolution_,
-                    &(*it),
-                    frac,
-                    part_global_info_,
-                    fields,
-                    field_sites,
-                    nfields,
-                    params,
-                    output_tmp,
-                    noutput);
-
-            
-            if(v2>maxvel)maxvel=v2;
-
-
-            if(noutput>0)for(int i=0;i<noutput;i++)
-            {   
-                // #pragma omp critical // ! Should discuss placment of this
-                // { /* ----------- critical region ----------- */
-                //     if(reduce_type[i] & (SUM | SUM_LOCAL)){   
-                //         output[i] += output_tmp[i];
-                //     }
-                //     else if(reduce_type[i] & (MIN | MIN_LOCAL)){    
-                //         if(output[i]>output_tmp[i])output[i] = output_tmp[i];
-                //     }
-                //     else if(reduce_type[i] & (MAX | MAX_LOCAL)){   
-                //         if(output[i]<output_tmp[i])output[i] = output_tmp[i];
-                //     }
-                // } /* ----------- end of critical region ----------- */
+                //for (int l=0; l<3; l++)
+                //    frac[l] = modf( (*it).pos[l] / lat_resolution_, &x0);
+                for (int l=0; l<3; l++)frac[l] = (*it).pos[l]*lat_part_.size(l) - xPart.coord(l);
                 
+                v2 = updateVel_funct(dtau,
+                        lat_resolution_,
+                        &(*it),
+                        frac,
+                        part_global_info_,
+                        fields,
+                        field_sites,
+                        nfields,
+                        params,
+                        output_tmp,
+                        noutput);
 
-                if(reduce_type[i] & (SUM | SUM_LOCAL)){ 
-                    #pragma omp atomic update
-                    output[i] += output_tmp[i];
-                } else if(reduce_type[i] & (MIN | MIN_LOCAL)){   
-                    // #pragma omp critical (_MIN_)
-                    // {
-                    // if(output[i]>output_tmp[i])output[i] = output_tmp[i];
-                    // }
-                    #pragma omp atomic write
-                    output[i] = output[i]>output_tmp[i] ? output_tmp[i] : output[i]; 
-                } else if(reduce_type[i] & (MAX | MAX_LOCAL)){   
-                    // #pragma omp critical (_MAX_)
-                    // {
-                    // if(output[i]<output_tmp[i])output[i] = output_tmp[i];
-                    // }
-                    #pragma omp atomic write 
-                    output[i] = output[i]<output_tmp[i] ? output_tmp[i] : output[i]; 
+                
+                if(v2>maxvel)maxvel=v2;
+
+
+                if(noutput>0)for(int i=0;i<noutput;i++)
+                {   
+                    // #pragma omp critical // ! Should discuss placment of this
+                    // { /* ----------- critical region ----------- */
+                    //     if(reduce_type[i] & (SUM | SUM_LOCAL)){   
+                    //         output[i] += output_tmp[i];
+                    //     }
+                    //     else if(reduce_type[i] & (MIN | MIN_LOCAL)){    
+                    //         if(output[i]>output_tmp[i])output[i] = output_tmp[i];
+                    //     }
+                    //     else if(reduce_type[i] & (MAX | MAX_LOCAL)){   
+                    //         if(output[i]<output_tmp[i])output[i] = output_tmp[i];
+                    //     }
+                    // } /* ----------- end of critical region ----------- */
+                    
+
+                    if(reduce_type[i] & (SUM | SUM_LOCAL)){ 
+                        #pragma omp atomic update
+                        output[i] += output_tmp[i];
+                    } else if(reduce_type[i] & (MIN | MIN_LOCAL)){   
+                        // #pragma omp critical (_MIN_)
+                        // {
+                        // if(output[i]>output_tmp[i])output[i] = output_tmp[i];
+                        // }
+                        #pragma omp atomic write
+                        output[i] = output[i]>output_tmp[i] ? output_tmp[i] : output[i]; 
+                    } else if(reduce_type[i] & (MAX | MAX_LOCAL)){   
+                        // #pragma omp critical (_MAX_)
+                        // {
+                        // if(output[i]<output_tmp[i])output[i] = output_tmp[i];
+                        // }
+                        #pragma omp atomic write 
+                        output[i] = output[i]<output_tmp[i] ? output_tmp[i] : output[i]; 
+                    }
                 }
-            }
 
-        } /* >----o----< (end loop over particles on each site)  >----o----<  */
+            } /* >----o----< (end loop over particles on each site)  >----o----<  */
 
-    };
+        };
 
-    /* Update velocity of all particles by looping through the particle (and field) lattice(s) */
-    lat_part_.for_each(op, fields, nfields);
-    
-    delete[] output_tmp;
+        /* Update velocity of all particles by looping through the particle (and field) lattice(s) */
+        lat_part_.for_each(op, fields, nfields);
+        
+        delete[] output_tmp;
     
     } /* ======================= end of OpenMP parallel region ======================= */
 
@@ -854,7 +854,7 @@ Real Particles<part,part_info,part_dataType>::updateVel(Real (*updateVel_funct)(
 
     /* Gather output from different MPI tasks */
     if(noutput>0)for(int i=0;i<noutput;i++){
-        if(reduce_type[i] & SUM)parallel.sum(output[i]);
+             if(reduce_type[i] & SUM)parallel.sum(output[i]);
         else if(reduce_type[i] & MIN)parallel.min(output[i]);
         else if(reduce_type[i] & MAX)parallel.max(output[i]);
     }
@@ -1799,33 +1799,11 @@ void Particles<part,part_info,part_dataType>::moveParticles( void (*move_funct)(
 
     parallel.barrier();
 
-    LATfield2::Site x(lat_part_); // !! remove
-    LATfield2::Site xNew(lat_part_); // !! remove
-    LATfield2::Site * sites = NULL;
 
-    typename std::forward_list<part>::iterator it,prev;
-    //Real b[3];
-    // double frac[3];
+    typename std::forward_list<part>::iterator it, prev; // particle list iterators
+    
     int localCoord[3];      // original local lattice site coordinates
     int newLocalCoord[3];   // updated local lattice site coordinates of a particle
-
-//    bool flag[4];
-
-
-    part **sendBuffer;
-    part **recBuffer;
-
-
-    sendBuffer = new part*[6];
-    recBuffer = new part*[6];
-
-    //part * pTemp;
-
-    long p;
-    long bufferSize[6];
-    long bufferSizeRec[6];
-
-    std::vector<part> part_moveProc[8];
 
 
     /* Provide reference values for reductions */
@@ -1840,224 +1818,237 @@ void Particles<part,part_info,part_dataType>::moveParticles( void (*move_funct)(
     thisRanks[0] = parallel.grid_rank()[0];
     thisRanks[1] = parallel.grid_rank()[1];
 
+    std::vector<part> part_moveProc[8]; 
+
     
 
     #pragma omp parallel private(it, prev, localCoord, newLocalCoord)
     { /* ======================= OpenMP parallel region ======================= */
 
-    ////////////////////////////////////////////////////////
+        ////////////////////////////////////////////////////////
 
-    Real x0;
-    double frac[3];
+        Real x0;
+        double frac[3];
 
-    double * output_tmp;   // temporary pointer
-    output_tmp = new double[noutput];
-
-
-    auto op1 = [&] (Site& part_site, Site * field_sites){
-        
-        for(it=(field_part_)(part_site).parts.begin(); it != (field_part_)(part_site).parts.end(); ++it){
-        	
-            for(int l=0; l<3; l++)frac[l] = modf( (*it).pos[l] * lat_part_.size(l), &x0);
-
-            move_funct(dtau,
-                       lat_resolution_,
-                       &(*it),
-                       frac,
-                       part_global_info_,
-                       fields,
-                       field_sites,
-                       nfields,
-                       params,
-                       output_tmp,
-                       noutput);
+        double * output_tmp;   // temporary pointer
+        output_tmp = new double[noutput];
 
 
-            // ///////USING ATOMIC///////
-            // if(noutput>0)for(int i=0; i<noutput; i++){
-            //     if(reduce_type[i] & (SUM | SUM_LOCAL)){
-            //         #pragma omp atomic update
-            //         output[i] += output_tmp[i];
-            //     } else if(reduce_type[i] & (MIN | MIN_LOCAL)){
-            //         #pragma omp atomic write
-            //         output[i] = output[i]>output_tmp[i] ? output_tmp[i] : output[i];
-            //     } else if(reduce_type[i] & (MAX | MAX_LOCAL)){
-            //         #pragma omp atomic write
-            //         output[i] = output[i]<output_tmp[i] ? output_tmp[i] : output[i]; 
-            //     }
-            // }
-            ///////USING CRITICAL (& ATOMIC)///////
-            if(noutput>0)for(int i=0; i<noutput; i++){
-                if(reduce_type[i] & (SUM | SUM_LOCAL)){
-                    // #pragma omp critical (_SUM_)
-                    #pragma omp atomic update
-                    output[i] += output_tmp[i];
-                } else if(reduce_type[i] & (MIN | MIN_LOCAL)){
-                    #pragma omp critical (_MIN_)
-                    {
-                        if(output[i]>output_tmp[i])output[i] = output_tmp[i];
-                    }
-                } else if(reduce_type[i] & (MAX | MAX_LOCAL)){
-                    #pragma omp critical (_MAX_)
-                    {
-                        if(output[i]<output_tmp[i])output[i] = output_tmp[i];
-                    }
-                    
-                }
-            }
-        }
-
-
-    };
-
-    lat_part_.for_each(op1, fields, nfields); // move particles
-
-    delete[] output_tmp;
-
-    ////////////////////////////////////////////////////////
-    
-    
-    int partRanks[2]; // the coordinate on parallel grid to which a particle belongs
-
-    Site xNew(lat_part_);    // updated site belonging to a particle
-
-    auto op2 = [&](Site& x){
-
-        // x is a site on the particle lattice 
-        
-        // get lattice position (local coordinates of site):
-        for(int i=0; i<3; i++)localCoord[i] = x.coordLocal(i);
-        
-		prev = field_part_(x).parts.before_begin();
-
-        for(it=field_part_(x).parts.begin(); it != field_part_(x).parts.end(); it++)
-        { /* >----o----< LOOP over particles beloning to site x >----o----< */
+        auto op1 = [&] (Site& part_site, Site * field_sites){
             
-            getPartNewProcess((*it), partRanks);
-
-            // periodic boundaries:
-            for(int i=0; i<3; i++){
-                if((*it).pos[i]<0)it->pos[i] += boxSize_[i];
-                if((*it).pos[i]>=boxSize_[i])it->pos[i] -= boxSize_[i];
-            }
-
-
-            // string msg = "Rank: (" + to_string(thisRanks[0]) + ", " + to_string(thisRanks[1]) + ")\n";
-            // if(partRanks[0]!=thisRanks[0] || partRanks[1]!=thisRanks[1])cout << msg;
-            // #pragma omp critical
-            // { /* ----------- critical region ----------- */
-
-
-            // deal with particle lists:
-            if(partRanks[0]==thisRanks[0] && partRanks[1]==thisRanks[1])  
-            { /* particle still belongs to the same rod */
-                int r[3];
-                getPartCoord(*it, r);
-
-                // should not happen:
-                if(!xNew.setCoord(r))cout<<"arg"<< *it <<" ; "<< partRanks[0] << " , " << thisRanks[0] << endl;
+            for(it=(field_part_)(part_site).parts.begin(); it != (field_part_)(part_site).parts.end(); ++it){
                 
+                for(int l=0; l<3; l++)frac[l] = modf( (*it).pos[l] * lat_part_.size(l), &x0);
 
-                getPartCoordLocal(*it, newLocalCoord);
-                if(localCoord[0]!=newLocalCoord[0] || localCoord[1]!=newLocalCoord[1] || localCoord[2]!=newLocalCoord[2] )
-                { /* position adjustment requires change of site */
-                    xNew.setCoordLocal(newLocalCoord);
-                    //field_part_(xNew).partsTemp.splice(field_part_(xNew).partsTemp.end(),field_part_(x).parts,itTemp);
+                move_funct(dtau,
+                        lat_resolution_,
+                        &(*it),
+                        frac,
+                        part_global_info_,
+                        fields,
+                        field_sites,
+                        nfields,
+                        params,
+                        output_tmp,
+                        noutput);
+
+
+                // ///////USING ATOMIC///////
+                // if(noutput>0)for(int i=0; i<noutput; i++){
+                //     if(reduce_type[i] & (SUM | SUM_LOCAL)){
+                //         #pragma omp atomic update
+                //         output[i] += output_tmp[i];
+                //     } else if(reduce_type[i] & (MIN | MIN_LOCAL)){
+                //         #pragma omp atomic write
+                //         output[i] = output[i]>output_tmp[i] ? output_tmp[i] : output[i];
+                //     } else if(reduce_type[i] & (MAX | MAX_LOCAL)){
+                //         #pragma omp atomic write
+                //         output[i] = output[i]<output_tmp[i] ? output_tmp[i] : output[i]; 
+                //     }
+                // }
+                ///////USING CRITICAL (& ATOMIC)///////
+                if(noutput>0)for(int i=0; i<noutput; i++){
+                    if(reduce_type[i] & (SUM | SUM_LOCAL)){
+                        // #pragma omp critical (_SUM_)
+                        #pragma omp atomic update
+                        output[i] += output_tmp[i];
+                    } else if(reduce_type[i] & (MIN | MIN_LOCAL)){
+                        #pragma omp critical (_MIN_)
+                        {
+                            if(output[i]>output_tmp[i])output[i] = output_tmp[i];
+                        }
+                    } else if(reduce_type[i] & (MAX | MAX_LOCAL)){
+                        #pragma omp critical (_MAX_)
+                        {
+                            if(output[i]<output_tmp[i])output[i] = output_tmp[i];
+                        }
+                        
+                    }
+                }
+            }
+
+
+        };
+
+        lat_part_.for_each(op1, fields, nfields); // move particles
+
+        delete[] output_tmp;
+
+        ////////////////////////////////////////////////////////
+        
+        
+        int partRanks[2]; // the coordinate on parallel grid to which a particle belongs
+
+        Site xNew(lat_part_);    // updated site belonging to a particle
+
+        auto op2 = [&](Site& x){
+
+            // x is a site on the particle lattice 
+            
+            // get lattice position (local coordinates of site):
+            for(int i=0; i<3; i++)localCoord[i] = x.coordLocal(i);
+            
+            prev = field_part_(x).parts.before_begin();
+
+            for(it=field_part_(x).parts.begin(); it != field_part_(x).parts.end(); it++)
+            { /* >----o----< LOOP over particles beloning to site x >----o----< */
+                
+                getPartNewProcess((*it), partRanks);
+
+                // periodic boundaries:
+                for(int i=0; i<3; i++){
+                    if((*it).pos[i]<0)it->pos[i] += boxSize_[i];
+                    if((*it).pos[i]>=boxSize_[i])it->pos[i] -= boxSize_[i];
+                }
+
+
+                // string msg = "Rank: (" + to_string(thisRanks[0]) + ", " + to_string(thisRanks[1]) + ")\n";
+                // if(partRanks[0]!=thisRanks[0] || partRanks[1]!=thisRanks[1])cout << msg;
+                // #pragma omp critical
+                // { /* ----------- critical region ----------- */
+
+
+                // deal with particle lists:
+                if(partRanks[0]==thisRanks[0] && partRanks[1]==thisRanks[1])  
+                { /* particle still belongs to the same rod */
+                    int r[3];
+                    getPartCoord(*it, r);
+
+                    // should not happen:
+                    if(!xNew.setCoord(r))cout<<"arg"<< *it <<" ; "<< partRanks[0] << " , " << thisRanks[0] << endl;
                     
-                    // add this particle to list of particles at correct site:
-                    #pragma omp critical (_PART_SITE_LIST_)
-                    field_part_(xNew).parts.splice_after(field_part_(xNew).parts.before_begin(), field_part_(x).parts, prev);
-                    //field_part_(xNew).size += 1;
-                    //field_part_(x).size -= 1;
-                    it = prev;  
-                }
-                else /* particle lattice position is unchanged */
-                    prev++;
 
-            }
-            else if(partRanks[1]==thisRanks[1]-1)
-            {
-                if(partRanks[0]==thisRanks[0])
-                {
-                    //part_moveProc[2].splice(part_moveProc[2].end(),field_part_(x).parts,itTemp);
-                    #pragma omp critical (_PART_PROC_LIST_)
-                    part_moveProc[2].push_back(*it);
-                    //field_part_(x).size -= 1;
+                    getPartCoordLocal(*it, newLocalCoord);
+                    if(localCoord[0]!=newLocalCoord[0] || localCoord[1]!=newLocalCoord[1] || localCoord[2]!=newLocalCoord[2] )
+                    { /* position adjustment requires change of site */
+                        xNew.setCoordLocal(newLocalCoord);
+                        //field_part_(xNew).partsTemp.splice(field_part_(xNew).partsTemp.end(),field_part_(x).parts,itTemp);
+                        
+                        // add this particle to list of particles at correct site:
+                        #pragma omp critical (_PART_SITE_LIST_)
+                        field_part_(xNew).parts.splice_after(field_part_(xNew).parts.before_begin(), field_part_(x).parts, prev);
+                        //field_part_(xNew).size += 1;
+                        //field_part_(x).size -= 1;
+                        it = prev;  
+                    }
+                    else /* particle lattice position is unchanged */
+                        prev++;
+
                 }
-                else if(partRanks[0]==thisRanks[0]-1)
+                else if(partRanks[1]==thisRanks[1]-1)
                 {
-                    //part_moveProc[0].splice(part_moveProc[0].end(),field_part_(x).parts,itTemp);
-                    #pragma omp critical (_PART_PROC_LIST_)
-                    part_moveProc[0].push_back(*it);
-                    //field_part_(x).size -= 1;
+                    if(partRanks[0]==thisRanks[0])
+                    {
+                        //part_moveProc[2].splice(part_moveProc[2].end(),field_part_(x).parts,itTemp);
+                        #pragma omp critical (_PART_PROC2_LIST_)
+                        part_moveProc[2].push_back(*it);
+                        //field_part_(x).size -= 1;
+                    }
+                    else if(partRanks[0]==thisRanks[0]-1)
+                    {
+                        //part_moveProc[0].splice(part_moveProc[0].end(),field_part_(x).parts,itTemp);
+                        #pragma omp critical (_PART_PROC0_LIST_)
+                        part_moveProc[0].push_back(*it);
+                        //field_part_(x).size -= 1;
+                    }
+                    else if(partRanks[0]==thisRanks[0]+1)
+                    {
+                        //part_moveProc[1].splice(part_moveProc[1].end(),field_part_(x).parts,itTemp);
+                        #pragma omp critical (_PART_PROC1_LIST_)
+                        part_moveProc[1].push_back(*it);
+                        //field_part_(x).size -= 1;
+                    }
+                    else
+                    {
+                        cout<< "particle : "<<(*it).ID<<" have move to far away (more than 1 proc)."<<endl;
+                        cout<< "particle position: "<< (*it) <<endl;
+                        //cout<< "particle position old: "<< partTest <<endl;
+                        cout<<"particle : "<<(*it).ID<< " "<< thisRanks[0]<<" , "<< thisRanks[1]<<" , "<< partRanks[0]<<" , "<< partRanks[1]<<endl;
+                    }
+                    #pragma omp critical (_PART_SITE_LIST_)
+                    field_part_(x).parts.erase_after(prev);
+                    it = prev;
                 }
-                else if(partRanks[0]==thisRanks[0]+1)
+                else if(partRanks[1]==thisRanks[1]+1)
                 {
-                    //part_moveProc[1].splice(part_moveProc[1].end(),field_part_(x).parts,itTemp);
-                    #pragma omp critical (_PART_PROC_LIST_)
-                    part_moveProc[1].push_back(*it);
-                    //field_part_(x).size -= 1;
+                    if(partRanks[0]==thisRanks[0])
+                    {
+                        //part_moveProc[5].splice(part_moveProc[5].end(),field_part_(x).parts,itTemp);
+                        #pragma omp critical (_PART_PROC5_LIST_)
+                        part_moveProc[5].push_back(*it);
+                        //field_part_(x).size -= 1;
+                    }
+                    else if(partRanks[0]==thisRanks[0]-1)
+                    {
+                        //part_moveProc[3].splice(part_moveProc[3].end(),field_part_(x).parts,itTemp);
+                        #pragma omp critical (_PART_PROC3_LIST_)
+                        part_moveProc[3].push_back(*it);
+                        //field_part_(x).size -= 1;
+                    }
+                    else if(partRanks[0]==thisRanks[0]+1)
+                    {
+                        //part_moveProc[4].splice(part_moveProc[4].end(),field_part_(x).parts,itTemp);
+                        #pragma omp critical (_PART_PROC4_LIST_)
+                        part_moveProc[4].push_back(*it);
+                        //field_part_(x).size -= 1;
+                    }
+                    else
+                    {
+                        cout<< "particle : "<<(*it).ID<<" have move to far away (more than 1 proc)."<<endl;
+                        cout<< "particle position: "<< (*it) <<endl;
+                        //cout<< "particle position old: "<< partTest <<endl;
+                        cout<<"particle : "<<(*it).ID<< " "<< thisRanks[0]<<" , "<< thisRanks[1]<<" , "<< partRanks[0]<<" , "<< partRanks[1]<<endl;
+                    }
+                    #pragma omp critical (_PART_SITE_LIST_)
+                    field_part_(x).parts.erase_after(prev);
+                    it = prev;
                 }
-                else
+                else if(partRanks[1]==thisRanks[1])
                 {
-                    cout<< "particle : "<<(*it).ID<<" have move to far away (more than 1 proc)."<<endl;
-                    cout<< "particle position: "<< (*it) <<endl;
-                    //cout<< "particle position old: "<< partTest <<endl;
-                    cout<<"particle : "<<(*it).ID<< " "<< thisRanks[0]<<" , "<< thisRanks[1]<<" , "<< partRanks[0]<<" , "<< partRanks[1]<<endl;
-                }
-                #pragma omp critical (_PART_SITE_LIST_)
-                field_part_(x).parts.erase_after(prev);
-                it = prev;
-            }
-            else if(partRanks[1]==thisRanks[1]+1)
-            {
-                if(partRanks[0]==thisRanks[0])
-                {
-                    //part_moveProc[5].splice(part_moveProc[5].end(),field_part_(x).parts,itTemp);
-                    #pragma omp critical (_PART_PROC_LIST_)
-                    part_moveProc[5].push_back(*it);
-                    //field_part_(x).size -= 1;
-                }
-                else if(partRanks[0]==thisRanks[0]-1)
-                {
-                    //part_moveProc[3].splice(part_moveProc[3].end(),field_part_(x).parts,itTemp);
-                    #pragma omp critical (_PART_PROC_LIST_)
-                    part_moveProc[3].push_back(*it);
-                    //field_part_(x).size -= 1;
-                }
-                else if(partRanks[0]==thisRanks[0]+1)
-                {
-                    //part_moveProc[4].splice(part_moveProc[4].end(),field_part_(x).parts,itTemp);
-                    #pragma omp critical (_PART_PROC_LIST_)
-                    part_moveProc[4].push_back(*it);
-                    //field_part_(x).size -= 1;
-                }
-                else
-                {
-                    cout<< "particle : "<<(*it).ID<<" have move to far away (more than 1 proc)."<<endl;
-                    cout<< "particle position: "<< (*it) <<endl;
-                    //cout<< "particle position old: "<< partTest <<endl;
-                    cout<<"particle : "<<(*it).ID<< " "<< thisRanks[0]<<" , "<< thisRanks[1]<<" , "<< partRanks[0]<<" , "<< partRanks[1]<<endl;
-                }
-                #pragma omp critical (_PART_SITE_LIST_)
-                field_part_(x).parts.erase_after(prev);
-                it = prev;
-            }
-            else if(partRanks[1]==thisRanks[1])
-            {
-                if(partRanks[0]==thisRanks[0]-1)
-                {
-                    //part_moveProc[6].splice(part_moveProc[6].end(),field_part_(x).parts,itTemp);
-                    #pragma omp critical (_PART_PROC_LIST_)
-                    part_moveProc[6].push_back(*it);
-                    //field_part_(x).size -= 1;
-                }
-                else if(partRanks[0]==thisRanks[0]+1)
-                {
-                    //part_moveProc[7].splice(part_moveProc[7].end(),field_part_(x).parts,itTemp);
-                    #pragma omp critical (_PART_PROC_LIST_)
-                    part_moveProc[7].push_back(*it);
-                    //field_part_(x).size -= 1;
+                    if(partRanks[0]==thisRanks[0]-1)
+                    {
+                        //part_moveProc[6].splice(part_moveProc[6].end(),field_part_(x).parts,itTemp);
+                        #pragma omp critical (_PART_PROC6_LIST_)
+                        part_moveProc[6].push_back(*it);
+                        //field_part_(x).size -= 1;
+                    }
+                    else if(partRanks[0]==thisRanks[0]+1)
+                    {
+                        //part_moveProc[7].splice(part_moveProc[7].end(),field_part_(x).parts,itTemp);
+                        #pragma omp critical (_PART_PROC7_LIST_)
+                        part_moveProc[7].push_back(*it);
+                        //field_part_(x).size -= 1;
+                    }
+                    else
+                    {
+                        cout<< "particle : "<<(*it).ID<<" has moved too much (more than 1 proc)."<<endl;
+                        cout<< "particle position: "<< (*it) <<endl;
+                        //cout<< "particle position old: "<< partTest <<endl;
+                        cout<<"particle : "<<(*it).ID<< " "<< thisRanks[0]<<" , "<< thisRanks[1]<<" , "<< partRanks[0]<<" , "<< partRanks[1]<<endl;
+                    }
+                    #pragma omp critical (_PART_SITE_LIST_)
+                    field_part_(x).parts.erase_after(prev);
+                    it = prev;
                 }
                 else
                 {
@@ -2066,29 +2057,18 @@ void Particles<part,part_info,part_dataType>::moveParticles( void (*move_funct)(
                     //cout<< "particle position old: "<< partTest <<endl;
                     cout<<"particle : "<<(*it).ID<< " "<< thisRanks[0]<<" , "<< thisRanks[1]<<" , "<< partRanks[0]<<" , "<< partRanks[1]<<endl;
                 }
-                #pragma omp critical (_PART_SITE_LIST_)
-                field_part_(x).parts.erase_after(prev);
-                it = prev;
-            }
-            else
-            {
-                cout<< "particle : "<<(*it).ID<<" has moved too much (more than 1 proc)."<<endl;
-                cout<< "particle position: "<< (*it) <<endl;
-                //cout<< "particle position old: "<< partTest <<endl;
-                cout<<"particle : "<<(*it).ID<< " "<< thisRanks[0]<<" , "<< thisRanks[1]<<" , "<< partRanks[0]<<" , "<< partRanks[1]<<endl;
-            }
-            
-            // } /* ----------- (end of critical region) ----------- */
+                
+                // } /* ----------- (end of critical region) ----------- */
 
-        }  /* >----o----< (end of LOOP over particles beloning to site x) >----o----< */
-    };
+            }  /* >----o----< (end of LOOP over particles beloning to site x) >----o----< */
+        };
 
-    lat_part_.for_each(op2); // pair particles and tasks
+        lat_part_.for_each(op2); // pair particles and tasks
 
-    ////////////////////////////////////////////////////////
+        ////////////////////////////////////////////////////////
 
 
-    } /* ======================= end of OpenMP parallel region ======================= */
+    } /* ======================= (end of OpenMP parallel region) ======================= */
 
 
 
@@ -2104,16 +2084,27 @@ void Particles<part,part_info,part_dataType>::moveParticles( void (*move_funct)(
     
     ////////////////////////////////////////////////////////////////
 
+    LATfield2::Site x(lat_part_); //
+    LATfield2::Site xNew(lat_part_); //
 
+    part **sendBuffer;
+    part **recBuffer;
+
+    sendBuffer = new part*[6];
+    recBuffer = new part*[6];
+
+    long p;
+    long bufferSize[6];
+    long bufferSizeRec[6];
 
     //remove the number of part...
     for(int i=0; i<8; i++)numParticles_ -= part_moveProc[i].size();
 
 
 
-    //////////////////////////////
-    /* INTER-TASK COMMUNICATION */
-    //////////////////////////////
+    ////////////////////////////
+    /* MPI TASK COMMUNICATION */
+    ////////////////////////////
 
 
 
@@ -2137,7 +2128,7 @@ void Particles<part,part_info,part_dataType>::moveParticles( void (*move_funct)(
     }
 
 
-     //cout<<"okokok  move firs statrt comm"<<endl;
+    //cout<<"okokok  move firs statrt comm"<<endl;
 
     /* ########## COMMUNICATION IN Y-DIR ########## */
     
