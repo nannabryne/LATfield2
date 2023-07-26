@@ -750,7 +750,7 @@ Real Particles<part,part_info,part_dataType>::updateVel(Real (*updateVel_funct)(
     /* 
     Cannot (trivially) use reduction clause from OpenMP lib 
     when there are several different reduction operations to be done.
-    Solution -> brute force using critcal directive 
+    Solution -> brute force using critcal/atomic directive 
         (should be equally fast?)
     */
     
@@ -759,8 +759,7 @@ Real Particles<part,part_info,part_dataType>::updateVel(Real (*updateVel_funct)(
 
 
     typename std::forward_list<part>::iterator it;  // particle list iterator
-    double frac[3]; // ???
-    
+    double frac[3];
     Real v2;        // v^2 
 
 
@@ -771,61 +770,75 @@ Real Particles<part,part_info,part_dataType>::updateVel(Real (*updateVel_funct)(
     auto op = [&] (Site& xPart, Site * field_sites){ 
 
         for (it=(field_part_)(xPart).parts.begin(); it != (field_part_)(xPart).parts.end(); ++it)
-        {
-                //old fashion uncompatible with runge kutta, frac is in [0,1], but shoud be allowed to be in [-1,2]
-                //to take into account displacements during the runge kutta steps....
-                //when using runge kutta, one have to use the proper projections methods...!!!
-                //what a crap:
-                // new method still compatible with previous methodology.... but! frac is still the offeset of the particles
-                // in respect to the lowest corner of the cell where the particle is. (but in the runge kutta step, it is the cells
-                // where the particle is at the beginning of the runge kutta (NOT THE ONE OF THE RK SUBSTEP!!!!))
+        { /* >----o----< loop over particles on each site >----o----< */
 
-                //for (int l=0; l<3; l++)
-                //    frac[l] = modf( (*it).pos[l] / lat_resolution_, &x0);
-                for (int l=0; l<3; l++)
-                {
-                  frac[l] =  (*it).pos[l]*lat_part_.size(l) - xPart.coord(l);
-                }
+            /* COMMENT:
+            //old fashion uncompatible with runge kutta, frac is in [0,1], but shoud be allowed to be in [-1,2]
+            //to take into account displacements during the runge kutta steps....
+            //when using runge kutta, one have to use the proper projections methods...!!!
+            //what a crap:
+            // new method still compatible with previous methodology.... but! frac is still the offeset of the particles
+            // in respect to the lowest corner of the cell where the particle is. (but in the runge kutta step, it is the cells
+            // where the particle is at the beginning of the runge kutta (NOT THE ONE OF THE RK SUBSTEP!!!!))
+            */
+
+            //for (int l=0; l<3; l++)
+            //    frac[l] = modf( (*it).pos[l] / lat_resolution_, &x0);
+            for (int l=0; l<3; l++)frac[l] = (*it).pos[l]*lat_part_.size(l) - xPart.coord(l);
+            
+            v2 = updateVel_funct(dtau,
+                    lat_resolution_,
+                    &(*it),
+                    frac,
+                    part_global_info_,
+                    fields,
+                    field_sites,
+                    nfields,
+                    params,
+                    output_tmp,
+                    noutput);
+
+            
+            if(v2>maxvel)maxvel=v2;
+
+
+            if(noutput>0)for(int i=0;i<noutput;i++)
+            {   
+                // #pragma omp critical // ! Should discuss placment of this
+                // { /* ----------- critical region ----------- */
+                //     if(reduce_type[i] & (SUM | SUM_LOCAL)){   
+                //         output[i] += output_tmp[i];
+                //     }
+                //     else if(reduce_type[i] & (MIN | MIN_LOCAL)){    
+                //         if(output[i]>output_tmp[i])output[i] = output_tmp[i];
+                //     }
+                //     else if(reduce_type[i] & (MAX | MAX_LOCAL)){   
+                //         if(output[i]<output_tmp[i])output[i] = output_tmp[i];
+                //     }
+                // } /* ----------- end of critical region ----------- */
 
                 
-                v2 = updateVel_funct(dtau,
-                           lat_resolution_,
-                           &(*it),
-                           frac,
-                           part_global_info_,
-                           fields,
-                           field_sites,
-                           nfields,
-                           params,
-                           output_tmp,
-                           noutput);
 
-                 
-
-                if(v2>maxvel)maxvel=v2;
-
-
-                if(noutput>0)for(int i=0;i<noutput;i++)
-                {   
-                    #pragma omp critical // ! Should discuss placment of this
-                    { /* ----------- critical region ----------- */
-                        if(reduce_type[i] & (SUM | SUM_LOCAL)){   
-                            output[i] += output_tmp[i];
-                        }
-                        else if(reduce_type[i] & (MIN | MIN_LOCAL)){    
-                            if(output[i]>output_tmp[i])output[i] = output_tmp[i];
-                        }
-                        else if(reduce_type[i] & (MAX | MAX_LOCAL)){   
-                            if(output[i]<output_tmp[i])output[i] = output_tmp[i];
-                        }
-                    } /* ----------- end of critical region ----------- */
+                if(reduce_type[i] & (SUM | SUM_LOCAL)){ 
+                    #pragma omp atomic update
+                    output[i] += output_tmp[i];
+                }
+                else if(reduce_type[i] & (MIN | MIN_LOCAL)){   
+                    #pragma omp critical 
+                    if(output[i]>output_tmp[i])output[i] = output_tmp[i];
+                }
+                else if(reduce_type[i] & (MAX | MAX_LOCAL)){   
+                    #pragma omp critical
+                    if(output[i]<output_tmp[i])output[i] = output_tmp[i];
                 }
 
-        }
+            }
+
+        } /* >----o----< (end loop over particles on each site)  >----o----<  */
 
     };
 
-
+    /* Update velocity of all particles by looping through the particle (and field) lattice(s) */
     lat_part_.for_each(op, fields, nfields);
     
     delete[] output_tmp;
