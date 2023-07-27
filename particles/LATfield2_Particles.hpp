@@ -813,19 +813,7 @@ Real Particles<part,part_info,part_dataType>::updateVel(Real (*updateVel_funct)(
 
 
                 if(noutput>0)for(int i=0;i<noutput;i++)
-                {   
-                    // #pragma omp critical // ! Should discuss placment of this
-                    // { /* ----------- critical region ----------- */
-                    //     if(reduce_type[i] & (SUM | SUM_LOCAL)){   
-                    //         output[i] += output_tmp[i];
-                    //     }
-                    //     else if(reduce_type[i] & (MIN | MIN_LOCAL)){    
-                    //         if(output[i]>output_tmp[i])output[i] = output_tmp[i];
-                    //     }
-                    //     else if(reduce_type[i] & (MAX | MAX_LOCAL)){   
-                    //         if(output[i]<output_tmp[i])output[i] = output_tmp[i];
-                    //     }
-                    // } /* ----------- end of critical region ----------- */
+                {   xe
                     
 
                     if(reduce_type[i] & (SUM | SUM_LOCAL)){ 
@@ -834,14 +822,14 @@ Real Particles<part,part_info,part_dataType>::updateVel(Real (*updateVel_funct)(
                     } else if(reduce_type[i] & (MIN | MIN_LOCAL)){   
                         // #pragma omp critical (_MIN_)
                         // {
-                        // if(output[i]>output_tmp[i])output[i] = output_tmp[i];
+                        //      if(output[i]>output_tmp[i])output[i] = output_tmp[i];
                         // }
                         #pragma omp atomic write
                         output[i] = output[i]>output_tmp[i] ? output_tmp[i] : output[i]; 
                     } else if(reduce_type[i] & (MAX | MAX_LOCAL)){   
                         // #pragma omp critical (_MAX_)
                         // {
-                        // if(output[i]<output_tmp[i])output[i] = output_tmp[i];
+                        //      if(output[i]<output_tmp[i])output[i] = output_tmp[i];
                         // }
                         #pragma omp atomic write 
                         output[i] = output[i]<output_tmp[i] ? output_tmp[i] : output[i]; 
@@ -1907,7 +1895,7 @@ void Particles<part,part_info,part_dataType>::moveParticles( void (*move_funct)(
         ////////////////////////////////////////////////////////
         
         
-        int partRanks[2]; // the coordinate on parallel grid to which a particle belongs
+        int partRanks[2]; // the coordinate on parallel grid to which a particle belongs (with "halo")
 
         Site xNew(lat_part_);    // updated site belonging to a particle
 
@@ -1921,7 +1909,7 @@ void Particles<part,part_info,part_dataType>::moveParticles( void (*move_funct)(
             prev = field_part_(x).parts.before_begin();
 
             for(it=field_part_(x).parts.begin(); it != field_part_(x).parts.end(); it++)
-            { /* >----o----< LOOP over particles beloning to site x >----o----< */
+            { /* >----o----< LOOP over particles belonging to site x >----o----< */
                 
                 getPartNewProcess((*it), partRanks);
 
@@ -1931,10 +1919,6 @@ void Particles<part,part_info,part_dataType>::moveParticles( void (*move_funct)(
                     if((*it).pos[i]>=boxSize_[i])it->pos[i] -= boxSize_[i];
                 }
 
-                // string msg = "Rank: (" + to_string(thisRanks[0]) + ", " + to_string(thisRanks[1]) + ")\n";
-                // if(partRanks[0]!=thisRanks[0] || partRanks[1]!=thisRanks[1])cout << msg;
-                // #pragma omp critical
-                // { /* ----------- critical region ----------- */
 
 
                 // deal with particle lists:
@@ -2066,10 +2050,8 @@ void Particles<part,part_info,part_dataType>::moveParticles( void (*move_funct)(
                     //cout<< "particle position old: "<< partTest <<endl;
                     cout<<"particle : "<<(*it).ID<< " "<< thisRanks[0]<<" , "<< thisRanks[1]<<" , "<< partRanks[0]<<" , "<< partRanks[1]<<endl;
                 }
-                
-                // } /* ----------- (end of critical region) ----------- */
-
-            }  /* >----o----< (end of LOOP over particles beloning to site x) >----o----< */
+ 
+            }  /* >----o----< (end of LOOP over particles belonging to site x) >----o----< */
         };
 
         lat_part_.for_each(op2); // pair particles and tasks
