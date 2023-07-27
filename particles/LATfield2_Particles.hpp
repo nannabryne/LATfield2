@@ -437,7 +437,8 @@ template <typename part, typename part_info, typename part_dataType>
 void Particles<part,part_info,part_dataType>::getPartNewProcess(part pcl,int * ranks)
 {
     int coord[3];
-    for(int i=0;i<3;i++)coord[i] = (int)(floor(pcl.pos[i]*lat_part_.size(i))) %lat_part_.size(i);
+    // for(int i=0;i<3;i++)coord[i] = (int)(floor(pcl.pos[i]*lat_part_.size(i))) %lat_part_.size(i);
+    getPartCoord(pcl, coord);
 
     if(pcl.pos[2] >=boxSize_[2]) ranks[0] = parallel.grid_size()[0];
     else if (pcl.pos[2] < 0.)
@@ -460,7 +461,7 @@ void Particles<part,part_info,part_dataType>::getPartNewProcess(part pcl,int * r
 template <typename part, typename part_info, typename part_dataType>
 void Particles<part,part_info,part_dataType>::getPartCoord(part pcl,int * coord)
 {
-    for(int i=0;i<3;i++)coord[i] = (int)(floor(pcl.pos[i]*lat_part_.size(i))) %lat_part_.size(i);
+    for(int i=0;i<3;i++)coord[i] = (int)(floor((pcl.pos[i]/boxSize_[i]) * lat_part_.size(i))) %lat_part_.size(i);
 }
 
 
@@ -468,7 +469,8 @@ void Particles<part,part_info,part_dataType>::getPartCoord(part pcl,int * coord)
 template <typename part, typename part_info, typename part_dataType>
 void Particles<part,part_info,part_dataType>::getPartCoordLocal(part pcl,int * coord)
 {
-    for(int i=0;i<3;i++)coord[i] = (int)(floor(pcl.pos[i]*lat_part_.size(i))) %lat_part_.size(i);
+    // for(int i=0;i<3;i++)coord[i] = (int)(floor(pcl.pos[i]*lat_part_.size(i))) %lat_part_.size(i);
+    getPartCoord(pcl, coord);
     coord[2]-=lat_part_.coordSkip()[0];
     coord[1]-=lat_part_.coordSkip()[1];
 }
@@ -479,17 +481,25 @@ void Particles<part,part_info,part_dataType>::coutPart(long ID)
     Site x(lat_part_);
     typename std::forward_list<part>::iterator it;
 
-    for(x.first();x.test();x.next())
-    {
-//        if((field_part_)(x).size!=0)
-//        {
-          for(it=(field_part_)(x).parts.begin(); it != (field_part_)(x).parts.end();++it)
-          {
-              if((*it).ID==ID)cout<< "Parallel ranks: ("<<parallel.grid_rank()[1]<<","<<parallel.grid_rank()[0]<<") ; "<< part_global_info_.type_name<<": "<<*it<< " , lattice position:"<<x <<endl;
-          }
-//        }
+//     for(x.first();x.test();x.next())
+//     {
+// //        if((field_part_)(x).size!=0)
+// //        {
+//           for(it=(field_part_)(x).parts.begin(); it != (field_part_)(x).parts.end();++it)
+//           {
+//               if((*it).ID==ID)cout<< "Parallel ranks: ("<<parallel.grid_rank()[1]<<","<<parallel.grid_rank()[0]<<") ; "<< part_global_info_.type_name<<": "<<*it<< " , lattice position:"<<x <<endl;
+//           }
+// //        }
 
-    }
+    
+    auto find_part = [&] (Site& x){
+        if(!this->field()(x).parts.empty())
+            for(it=(field_part_)(x).parts.begin(); it != (field_part_)(x).parts.end();++it){
+                if((*it).ID==ID)cout<< "Parallel ranks: ("<<parallel.grid_rank()[1]<<","<<parallel.grid_rank()[0]<<") ; "<< part_global_info_.type_name<<": "<<*it<< " , lattice position:"<<x <<endl;
+            }
+    };
+    lat_part_.for_each(find_part);
+    
 
 }
 
@@ -1917,10 +1927,9 @@ void Particles<part,part_info,part_dataType>::moveParticles( void (*move_funct)(
 
                 // periodic boundaries:
                 for(int i=0; i<3; i++){
-                    if((*it).pos[i]<0)it->pos[i] += boxSize_[i];
+                    if((*it).pos[i]<0) it->pos[i] += boxSize_[i];
                     if((*it).pos[i]>=boxSize_[i])it->pos[i] -= boxSize_[i];
                 }
-
 
                 // string msg = "Rank: (" + to_string(thisRanks[0]) + ", " + to_string(thisRanks[1]) + ")\n";
                 // if(partRanks[0]!=thisRanks[0] || partRanks[1]!=thisRanks[1])cout << msg;
