@@ -789,7 +789,8 @@ void symtensorProjectionCICNGP_project(Particles<part,part_info,part_dataType> *
 
     for(xPart.first(),xTij.first();xPart.test();xPart.next(),xTij.next())
     {
-        if(parts->field()(xPart).size!=0)
+        // if(parts->field()(xPart).size!=0)
+        if(!parts->field()(xPart).parts.empty())
         {
             for(int i=0;i<3;i++)
                 referPos[i] = (double)xPart.coord(i)*latresolution;
