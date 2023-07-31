@@ -115,88 +115,86 @@ void scalarProjectionCIC_project(Particles<part,part_info,part_dataType> * parts
     #pragma omp parallel
     { /* ======================= OpenMP parallel region ======================= */
 
-    double referPos[3];
-    double rescalPos[3];
-    double rescalPosDown[3];
+        double referPos[3];
+        double rescalPos[3];
+        double rescalPosDown[3];
 
-    double mass;
-   
-
-    Real localCube[8]; // XYZ = 000 | 001 | 010 | 011 | 100 | 101 | 110 | 111
-
-    if(sfrom == FROM_INFO)
-    {
-        mass = *(double*)((char*)parts->parts_info() + offset);
-        mass /= cicVol;
-        //cout << mass<<endl;
-    }
-
+        double mass;
     
 
+        Real localCube[8]; // XYZ = 000 | 001 | 010 | 011 | 100 | 101 | 110 | 111
 
-    auto op = [&] (Site * sites){
-
-        Site xPart = sites[0];
-        Site xField = sites[1];
-
-        if(!parts->field()(xPart).parts.empty()){
-    
-
-        for(int i=0;i<3;i++)referPos[i]=xPart.coord(i)*latresolution;
-        for(int i=0;i<8;i++)localCube[i]=0;
-
-        typename std::forward_list<part>::iterator it;
-
-        for (it=(parts->field())(xPart).parts.begin(); it != (parts->field())(xPart).parts.end(); ++it)
+        if(sfrom == FROM_INFO)
         {
-            for(int i =0;i<3;i++)
-            {
-                rescalPos[i]=(*it).pos[i]-referPos[i];
-                rescalPosDown[i]=latresolution -rescalPos[i];
-            }
-
-            if(sfrom==FROM_PART)
-            {
-                mass = *(double*)((char*)&(*it)+offset);
-                mass /=cicVol;
-            }
-
-            //000
-            localCube[0] += rescalPosDown[0]*rescalPosDown[1]*rescalPosDown[2] * mass;
-            //001
-            localCube[1] += rescalPosDown[0]*rescalPosDown[1]*rescalPos[2] * mass;
-            //010
-            localCube[2] += rescalPosDown[0]*rescalPos[1]*rescalPosDown[2] * mass;
-            //011
-            localCube[3] += rescalPosDown[0]*rescalPos[1]*rescalPos[2] * mass;
-            //100
-            localCube[4] += rescalPos[0]*rescalPosDown[1]*rescalPosDown[2] * mass;
-            //101
-            localCube[5] += rescalPos[0]*rescalPosDown[1]*rescalPos[2] * mass;
-            //110
-            localCube[6] += rescalPos[0]*rescalPos[1]*rescalPosDown[2] * mass;
-            //111
-            localCube[7] += rescalPos[0]*rescalPos[1]*rescalPos[2] * mass;
+            mass = *(double*)((char*)parts->parts_info() + offset);
+            mass /= cicVol;
+            //cout << mass<<endl;
         }
 
-        #pragma omp critical (_LOCAL_CUBE_)
-        {
-        (*rho)(xField)+=localCube[0];
-        (*rho)(xField+2)+=localCube[1];
-        (*rho)(xField+1)+=localCube[2];
-        (*rho)(xField+1+2)+=localCube[3];
-        (*rho)(xField+0)+=localCube[4];
-        (*rho)(xField+0+2)+=localCube[5];
-        (*rho)(xField+0+1)+=localCube[6];
-        (*rho)(xField+0+1+2)+=localCube[7];
-        }
+        auto op = [&] (Site& xPart, Site& xField){
+
+
+            if(!parts->field()(xPart).parts.empty()){
         
 
-        }
+            for(int i=0;i<3;i++)referPos[i]=xPart.coord(i)*latresolution;
+            for(int i=0;i<8;i++)localCube[i]=0;
 
-    };
+            typename std::forward_list<part>::iterator it;
 
-    parts->lattice().for_each(op, &rho->lattice());
+            for (it=(parts->field())(xPart).parts.begin(); it != (parts->field())(xPart).parts.end(); ++it)
+            {
+                for(int i =0;i<3;i++)
+                {
+                    rescalPos[i]=(*it).pos[i]-referPos[i];
+                    rescalPosDown[i]=latresolution -rescalPos[i];
+                }
+
+                if(sfrom==FROM_PART)
+                {
+                    mass = *(double*)((char*)&(*it)+offset);
+                    mass /=cicVol;
+                }
+
+                //000
+                localCube[0] += rescalPosDown[0]*rescalPosDown[1]*rescalPosDown[2] * mass;
+                //001
+                localCube[1] += rescalPosDown[0]*rescalPosDown[1]*rescalPos[2] * mass;
+                //010
+                localCube[2] += rescalPosDown[0]*rescalPos[1]*rescalPosDown[2] * mass;
+                //011
+                localCube[3] += rescalPosDown[0]*rescalPos[1]*rescalPos[2] * mass;
+                //100
+                localCube[4] += rescalPos[0]*rescalPosDown[1]*rescalPosDown[2] * mass;
+                //101
+                localCube[5] += rescalPos[0]*rescalPosDown[1]*rescalPos[2] * mass;
+                //110
+                localCube[6] += rescalPos[0]*rescalPos[1]*rescalPosDown[2] * mass;
+                //111
+                localCube[7] += rescalPos[0]*rescalPos[1]*rescalPos[2] * mass;
+            }
+
+            // COUT << localCube[0]<< endl;
+
+            #pragma omp critical (_LOCAL_CUBE_)
+            {
+                (*rho)(xField)+=localCube[0];
+                (*rho)(xField+2)+=localCube[1];
+                (*rho)(xField+1)+=localCube[2];
+                (*rho)(xField+1+2)+=localCube[3];
+                (*rho)(xField+0)+=localCube[4];
+                (*rho)(xField+0+2)+=localCube[5];
+                (*rho)(xField+0+1)+=localCube[6];
+                (*rho)(xField+0+1+2)+=localCube[7];
+            }
+            
+
+            }
+
+        };
+
+
+        parts->lattice().for_each(op, &rho->lattice(), "controlled");
 
     } /* ======================= (end of OpenMP parallel region) ======================= */
 
@@ -490,7 +488,8 @@ void vectorProjectionCICNGP_project(Particles<part,part_info,part_dataType> * pa
 
     for(xPart.first(),xVel.first();xPart.test();xPart.next(),xVel.next())
     {
-        if(parts->field()(xPart).size!=0)
+        // if(parts->field()(xPart).size!=0)
+        if(!parts->field()(xPart).parts.empty())
         {
             for(int i=0;i<3;i++)
 
@@ -778,7 +777,8 @@ void symtensorProjectionCICNGP_project(Particles<part,part_info,part_dataType> *
 
     for(xPart.first(),xTij.first();xPart.test();xPart.next(),xTij.next())
     {
-        if(parts->field()(xPart).size!=0)
+        // if(parts->field()(xPart).size!=0)
+        if(!parts->field()(xPart).parts.empty())
         {
             for(int i=0;i<3;i++)
                 referPos[i] = (double)xPart.coord(i)*latresolution;

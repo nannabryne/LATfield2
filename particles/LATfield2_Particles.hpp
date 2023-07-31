@@ -813,9 +813,7 @@ Real Particles<part,part_info,part_dataType>::updateVel(Real (*updateVel_funct)(
 
 
                 if(noutput>0)for(int i=0;i<noutput;i++)
-                {   xe
-                    
-
+                {  
                     if(reduce_type[i] & (SUM | SUM_LOCAL)){ 
                         #pragma omp atomic update
                         output[i] += output_tmp[i];
