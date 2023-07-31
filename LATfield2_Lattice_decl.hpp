@@ -222,9 +222,9 @@ public:
      \details Can call this both inside an OpenMP parallel region, in which case it will use that environment, and outside. In the absence of an existing OpenMP parallel region, it will create and kill such an environment automatically iff the -fopenmp flag is given to the compiler, otherwise the function simply iterate through the lattice in the "old" way, using x.first() and so on, and execute the computation in the same way.
 
      \param onsite_operation lambda function of every site containing the computation to be performed in the loop
-     \param other_lattices other lattices for which to
+     \param other_lattices other lattices to consider
      \param num_lattices the TOTAL number of lattices to consider ( 1 + #{other lattices} )
-     \param scheme ...
+     \param scheme key word for how to loop through the lattice ("controlled": loops through the grid with jumps of 2 and 2 in y and z dir)
      */
     void for_each(
         std::function<void(Site *)> onsite_operation, 
@@ -239,9 +239,9 @@ public:
      \details Can call this both inside an OpenMP parallel region, in which case it will use that environment, and outside. In the absence of an existing OpenMP parallel region, it will create and kill such an environment automatically iff the -fopenmp flag is given to the compiler, otherwise the function simply iterate through the lattice in the "old" way, using x.first() and so on, and execute the computation in the same way.
 
      \param onsite_operation lambda function of every site containing the computation to be performed in the loop
-     \param other_lattices other lattices for which to
+     \param other_lattices other lattices to consider
      \param num_other_lattices the number of secondary lattices to consider ( #{other lattices} )
-     \param scheme ...
+     \param scheme key word for how to loop through the lattice ("controlled": loops through the grid with jumps of 2 and 2 in y and z dir)
      */
     void for_each(
         std::function<void(Site&, Site *)> onsite_operation, 
@@ -252,6 +252,16 @@ public:
 
 
 
+    /*! \fn for_each(std::function<void(Site&, Site *)> onsite_operation, Lattice ** fields, const int num_fields, string scheme)
+     \brief Perform some operation on each lattice site.
+
+     \details Can call this both inside an OpenMP parallel region, in which case it will use that environment, and outside. In the absence of an existing OpenMP parallel region, it will create and kill such an environment automatically iff the -fopenmp flag is given to the compiler, otherwise the function simply iterate through the lattice in the "old" way, using x.first() and so on, and execute the computation in the same way.
+
+     \param onsite_operation lambda function of every site containing the computation to be performed in the loop
+     \param fields fields from which to extract other lattice(s) [typically Field<Real>, but can be any class F that contains a member function Lattice& lattice()]
+     \param num_fields number of fields from which to extract other lattice(s)
+     \param scheme key word for how to loop through the lattice ("controlled": loops through the grid with jumps of 2 and 2 in y and z dir)
+     */
     template<typename F>
     void for_each(
         std::function<void(Site&, Site *)> onsite_operation, 
@@ -261,14 +271,29 @@ public:
 
 
     
-    // ADDITIONAL ALIASES:
+    /*! \fn for_each(std::function<void(Site *)> onsite_operation, Lattice * other_lattice, string scheme)
+     \brief Perform some operation on each lattice site on two lattices (this and other_lattice).
 
-    // Two-lattice case (relevant for e.g. scalar projection)
+     \details Can call this both inside an OpenMP parallel region, in which case it will use that environment, and outside. In the absence of an existing OpenMP parallel region, it will create and kill such an environment automatically iff the -fopenmp flag is given to the compiler, otherwise the function simply iterate through the lattice in the "old" way, using x.first() and so on, and execute the computation in the same way.
+
+     \param onsite_operation lambda function of every site (as pointer list) containing the computation to be performed in the loop
+     \param other_lattice other lattice to consider
+     \param scheme key word for how to loop through the lattice ("controlled": loops through the grid with jumps of 2 and 2 in y and z dir)
+     */
     void for_each(
         std::function<void(Site *)> onsite_operation, 
         Lattice * other_lattice,
         string scheme="controlled");
 
+    /*! \fn for_each(std::function<void(Site&, Site&)> onsite_operation, Lattice * other_lattice, string scheme)
+     \brief Perform some operation on each lattice site on two lattices (this and other_lattice).
+
+     \details Can call this both inside an OpenMP parallel region, in which case it will use that environment, and outside. In the absence of an existing OpenMP parallel region, it will create and kill such an environment automatically iff the -fopenmp flag is given to the compiler, otherwise the function simply iterate through the lattice in the "old" way, using x.first() and so on, and execute the computation in the same way.
+
+     \param onsite_operation lambda function of both sites containing the computation to be performed in the loop
+     \param other_lattice other lattice to consider
+     \param scheme key word for how to loop through the lattice ("controlled": loops through the grid with jumps of 2 and 2 in y and z dir)
+     */
     void for_each(
         std::function<void(Site&, Site&)> onsite_operation, 
         Lattice * other_lattice,
